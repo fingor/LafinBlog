@@ -2,7 +2,6 @@
   <div class="app-container">
     <NavBar />
     <router-view style="flex: 1"></router-view>
-    <!-- 路由内容渲染位置 -->
   </div>
 </template>
 <script setup>

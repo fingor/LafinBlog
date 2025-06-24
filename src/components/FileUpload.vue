@@ -1,14 +1,11 @@
 <template>
   <div>
-    <h1>File Upload Component</h1>
-    <p>This is a placeholder for the file upload component.</p>
-    <!-- Add your file upload logic here -->
-    <input type="file" @change="handleFileUpload" />
+    <globalUploader></globalUploader>
   </div>
 </template>
 
-<script>
-export default {};
+<script setup>
+import globalUploader from "./globalUploader.vue";
 </script>
 
 <style></style>
