@@ -12,5 +12,6 @@ import NavBar from "./components/NavBar.vue";
   display: flex;
   flex-flow: column;
   height: 100%;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 </style>

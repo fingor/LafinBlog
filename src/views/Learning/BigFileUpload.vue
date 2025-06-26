@@ -1,13 +1,7 @@
 <template>
-  <FileUpload />
+  <customFileUpload />
 </template>
 
-<script>
-import FileUpload from "@/components/FileUpload.vue";
-
-export default {
-  components: {
-    FileUpload,
-  },
-};
+<script setup>
+import customFileUpload from "@/components/customFileUpload.vue";
 </script>
