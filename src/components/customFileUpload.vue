@@ -42,16 +42,6 @@
           </span>
         </div>
         <ul>
-          <!-- <li v-for="(file, index) in files" :key="file.name + index">
-            <div class="file-details">
-              <span class="filename">{{ file.name }}</span>
-              <span class="filesize">{{ formatBytes(file.size) }}</span>
-            </div>
-            <button class="remove-btn" @click="removeFile(index)">
-              <i class="fas fa-times"></i>
-            </button>
-          </li> -->
-          <!-- // 修改文件信息区域，添加进度条 -->
           <li v-for="(file, index) in files" :key="file.name + index">
             <div class="file-details">
               <span class="filename">{{ file.name }}</span>
@@ -62,16 +52,45 @@
                   :style="{ width: fileStatus[file.name].progress + '%' }"
                 ></div>
                 <div class="progress-text">
-                  {{ fileStatus[file.name].progress }}% ({{
-                    fileStatus[file.name].uploadedChunks
-                  }}/{{ fileStatus[file.name].totalChunks }})
+                  {{ getDisplayStatus(fileStatus[file.name].status) }}:
+                  {{ fileStatus[file.name].progress }}%
+                  <template v-if="fileStatus[file.name].status === 'hashing'">
+                    ({{ fileStatus[file.name].hashProgress }}%)
+                  </template>
+                  <template
+                    v-else-if="fileStatus[file.name].status === 'waiting'"
+                  >
+                    (就绪)
+                  </template>
+                  <template v-else>
+                    ({{ fileStatus[file.name].uploadedChunks }}/{{
+                      fileStatus[file.name].totalChunks
+                    }})
+                  </template>
                 </div>
               </div>
             </div>
-            <button class="remove-btn" @click="removeFile(index)">
-              X
-              <!-- <i class="fas fa-times"></i> -->
-            </button>
+            <div class="control-buttons">
+              <!-- 合并上传和暂停按钮 -->
+              <button
+                class="control-btn"
+                @click="
+                  fileStatus[file.name]?.status === 'uploading'
+                    ? toggleUpload(file)
+                    : uploadFile(file)
+                "
+                :disabled="fileStatus[file.name]?.status === 'hashing'"
+              >
+                {{ getButtonText(file) }}
+              </button>
+              <button
+                class="remove-btn"
+                @click="handleRemove(index, file)"
+                :disabled="fileStatus[file.name]?.status === 'hashing'"
+              >
+                X
+              </button>
+            </div>
           </li>
         </ul>
       </div>
@@ -79,15 +98,15 @@
       <div class="flex-buttons">
         <button
           class="btn btn-primary"
-          :disabled="uploading"
+          :disabled="uploading || !allHashesCalculated || isCalculating"
           @click="uploadFiles"
         >
           <i class="fas fa-upload"></i>
-          {{ uploading ? "上传中..." : "开始上传" }}
+          {{ getUploadButtonText() }}
         </button>
         <button
           class="btn btn-secondary"
-          :disabled="uploading"
+          :disabled="uploading || isCalculating"
           @click="resetUploader"
         >
           <i class="fas fa-redo"></i> 重置
@@ -160,7 +179,26 @@ const uploadResults = ref([]);
 const fileInput = ref(null);
 const uploading = ref(false);
 const progressMap = ref({});
+const uploadControllers = reactive({}); // 存储每个文件的 AbortController
+const pausedFiles = reactive({}); // 存储暂停状态
 
+// 添加状态映射对象
+const statusMap = {
+  pending: "等待中",
+  hashing: "计算哈希",
+  waiting: "等待上传",
+  uploading: "上传中",
+  paused: "已暂停",
+  completed: "已完成",
+  error: "错误",
+  canceled: "已取消",
+  hash_error: "哈希计算失败",
+};
+
+// 添加一个获取显示状态的方法
+const getDisplayStatus = (status) => {
+  return statusMap[status] || status;
+};
 // 计算属性
 const totalFileSize = computed(() => {
   return files.value.reduce((total, file) => total + file.size, 0);
@@ -204,9 +242,68 @@ const addFiles = (newFiles) => {
   if (uniqueFiles.length > 0) {
     files.value = [...files.value, ...uniqueFiles];
     uploadStatus.value = `已添加 ${uniqueFiles.length} 个文件`;
+
+    // 新增：文件添加后立即开始计算哈希
+    uniqueFiles.forEach((file) => {
+      // 初始化为计算哈希状态
+      updateFileStatus(file.name, {
+        status: "hashing",
+        hashProgress: 0,
+      });
+
+      // 启动哈希计算
+      calculateFileHash(file).catch((error) => {
+        console.error(`文件 ${file.name} 哈希计算失败:`, error);
+        updateFileStatus(file.name, {
+          status: "hash_error",
+        });
+      });
+    });
   }
 };
+// 获取按钮文本
+const getButtonText = (file) => {
+  const status = fileStatus[file.name]?.status;
+  if (status === "uploading") {
+    return isPaused(file.name) ? "恢复" : "暂停";
+  }
+  return "上传";
+};
 
+// 合并的移除和取消方法
+const handleRemove = async (index, file) => {
+  try {
+    console.log("fileStatus[file.name]", fileStatus[file.name]);
+
+    // 如果文件正在上传中，先取消上传
+    if (fileStatus[file.name]?.status === "uploading") {
+      await cancelUpload(file);
+    }
+
+    // 如果文件已经初始化了上传（有uploadId），通知服务器清理分片
+    if (file.uploadId) {
+      await axios.post("/api/upload/cancel", {
+        fileName: file.name,
+        uploadId: file.uploadId,
+      });
+    }
+
+    // 清理相关状态
+    if (uploadControllers[file.name]) {
+      uploadControllers[file.name].abort();
+      delete uploadControllers[file.name];
+    }
+    delete pausedFiles[file.name];
+    delete fileStatus[file.name];
+
+    // 最后从列表中移除文件
+    files.value.splice(index, 1);
+    uploadStatus.value = `已移除文件: ${file.name}`;
+  } catch (error) {
+    console.error(`移除文件失败: ${error}`);
+    uploadStatus.value = `移除文件失败: ${file.name}`;
+  }
+};
 // 移除单个文件
 const removeFile = (index) => {
   const removedFile = files.value[index];
@@ -215,26 +312,108 @@ const removeFile = (index) => {
   uploadStatus.value = `已移除文件: ${removedFile.name}`;
 };
 
-// 重置上传器
-const resetUploader = () => {
-  files.value = [];
-  uploadResults.value = [];
-  uploadStatus.value = "";
-  uploading.value = false;
-  progressMap.value = {};
+// 修改重置方法
+const resetUploader = async () => {
+  try {
+    // 中断所有进行中的上传
+    Object.values(uploadControllers).forEach((controller) => {
+      controller.abort();
+    });
+
+    // 获取所有未完成的上传ID
+    const incompleteFiles = files.value.filter(
+      (file) => fileStatus[file.name]?.status !== "completed"
+    );
+
+    // 通知服务器清理所有未完成文件的分片
+    await Promise.all(
+      incompleteFiles.map((file) =>
+        axios
+          .post("/api/upload/cancel", {
+            fileName: file.name,
+            uploadId: file.uploadId,
+          })
+          .catch((err) => console.error(`清理文件 ${file.name} 失败:`, err))
+      )
+    );
+
+    // 重置所有状态
+    files.value = [];
+    uploadResults.value = [];
+    uploadStatus.value = "";
+    uploading.value = false;
+    progressMap.value = {};
+    Object.keys(uploadControllers).forEach(
+      (key) => delete uploadControllers[key]
+    );
+    Object.keys(pausedFiles).forEach((key) => delete pausedFiles[key]);
+  } catch (error) {
+    console.error("重置失败:", error);
+  }
 };
-// 为文件生成唯一标识符
-const generateFileIdentifier = (file) => {
-  return `${file.name}-${file.size}-${file.lastModified}`;
+
+// 判断文件是否暂停
+const isPaused = (fileName) => {
+  return pausedFiles[fileName] === true;
+};
+
+// 切换文件上传状态
+const toggleUpload = (file) => {
+  if (isPaused(file.name)) {
+    // 恢复上传
+    pausedFiles[file.name] = false;
+    resumeUpload(file);
+  } else {
+    // 暂停上传
+    pausedFiles[file.name] = true;
+    uploadControllers[file.name]?.abort();
+  }
+};
+
+// 恢复上传
+const resumeUpload = async (file) => {
+  try {
+    const fileHash = await calculateFileHash(file);
+    // 获取已上传的分片信息
+    const { uploadId, uploadedChunks = [] } = await initFileUpload(
+      file,
+      fileHash
+    );
+    // 继续上传
+    await uploadFile(file, uploadId, fileHash, uploadedChunks);
+  } catch (error) {
+    console.error(`恢复上传失败: ${error}`);
+    updateFileStatus(file.name, { status: "error" });
+  }
+};
+
+// 取消单个文件上传
+const cancelUpload = async (file) => {
+  try {
+    // 中断上传请求
+    uploadControllers[file.name]?.abort();
+    // 通知服务器清理文件分片
+    await axios.post("/api/upload/cancel", {
+      fileName: file.name,
+      uploadId: file.uploadId,
+    });
+    // 更新状态
+    updateFileStatus(file.name, { status: "canceled" });
+    // 清理相关状态
+    delete uploadControllers[file.name];
+    delete pausedFiles[file.name];
+  } catch (error) {
+    console.error(`取消上传失败: ${error}`);
+  }
 };
 // 初始化文件上传
-const initFileUpload = async (file) => {
+// 1.获取上传 ID 2.断点续传支持 3.文件查重
+const initFileUpload = async (file, fileHash) => {
   try {
-    const identifier = generateFileIdentifier(file);
     const response = await axios.post("/api/upload/init", {
       fileName: file.name,
       fileSize: file.size,
-      identifier,
+      fileHash,
     });
     return response.data;
   } catch (error) {
@@ -255,6 +434,10 @@ const initFileUpload = async (file) => {
 
 // 上传文件分片
 const uploadChunk = async (file, uploadId, chunk, index, totalChunks) => {
+  // 为每个文件创建新的 AbortController
+  if (!uploadControllers[file.name]) {
+    uploadControllers[file.name] = new AbortController();
+  }
   try {
     const formData = new FormData();
     formData.append("chunk", chunk);
@@ -264,6 +447,7 @@ const uploadChunk = async (file, uploadId, chunk, index, totalChunks) => {
     formData.append("originalname", file.name);
 
     const config = {
+      signal: uploadControllers[file.name].signal,
       onUploadProgress: (progressEvent) => {
         const progress = Math.round(
           (progressEvent.loaded / progressEvent.total) * 100
@@ -281,6 +465,9 @@ const uploadChunk = async (file, uploadId, chunk, index, totalChunks) => {
     await axios.post("/api/upload/chunk", formData, config);
     return { success: true };
   } catch (error) {
+    if (error.name === "AbortError") {
+      return { success: false, aborted: true };
+    }
     console.error(`分片 ${index} 上传失败:`, error);
     return { success: false, error: error.message };
   }
@@ -291,7 +478,6 @@ const completeFileUpload = async (file, uploadId, fileHash) => {
     const response = await axios.post("/api/upload/complete", {
       uploadId,
       fileName: file.name,
-      identifier: generateFileIdentifier(file),
       fileHash,
     });
     return {
@@ -306,14 +492,71 @@ const completeFileUpload = async (file, uploadId, fileHash) => {
     };
   }
 };
+// 计算是否所有文件都已完成哈希计算
+const allHashesCalculated = computed(() => {
+  return files.value.every(
+    (file) =>
+      fileStatus[file.name]?.status !== "hashing" &&
+      fileStatus[file.name]?.status !== "pending"
+  );
+});
+
+// 计算是否有文件正在计算哈希
+const isCalculating = computed(() => {
+  return files.value.some(
+    (file) => fileStatus[file.name]?.status === "hashing"
+  );
+});
+
+// 更新上传按钮的文本
+const getUploadButtonText = () => {
+  if (uploading.value) return "上传中...";
+  if (isCalculating.value)
+    return `计算哈希中 (${completedHashFiles.value}/${files.value.length})`;
+  if (!allHashesCalculated.value) return "准备哈希计算...";
+  return "一键上传";
+};
+
+// 计算已完成哈希的文件数量
+const completedHashFiles = computed(() => {
+  return files.value.filter(
+    (file) => fileStatus[file.name]?.status !== "hashing"
+  ).length;
+});
+
 // 计算文件的MD5哈希值（用于断点续传和文件完整性验证）
 const calculateFileHash = (file) => {
-  return new Promise((resolve) => {
-    // 实际项目中应使用crypto.subtle.digest计算MD5
-    // 这里简化为返回文件名+大小+时间的组合值
-    setTimeout(() => {
-      resolve(`${file.name}_${file.size}_${file.lastModified}`);
-    }, 300);
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      new URL("@/workers/hash.worker.js", import.meta.url)
+    );
+    worker.postMessage({
+      file,
+      chunkSize: 2 * 1024 * 1024, // 2MB chunks
+    });
+
+    worker.onmessage = (e) => {
+      const { type, progress, hash } = e.data;
+
+      if (type === "progress") {
+        updateFileStatus(file.name, {
+          hashProgress: progress,
+        });
+      } else if (type === "complete") {
+        updateFileStatus(file.name, {
+          status: "waiting",
+          progress: 0,
+        });
+        resolve(hash);
+        worker.terminate();
+      } else if (type === "error") {
+        updateFileStatus(file.name, {
+          status: "hash_error",
+        });
+        reject(new Error("计算哈希时发生错误"));
+        worker.terminate();
+      }
+    };
   });
 };
 // 添加并发控制函数
@@ -368,6 +611,7 @@ const updateChunkStatus = (fileName, uploaded, total) => {
 };
 
 // 修改后的 uploadFile 方法（并行上传分片）
+// 修改 uploadFile 方法，使其支持单文件上传
 const uploadFile = async (file) => {
   const CHUNK_SIZE = 2 * 1024 * 1024;
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
@@ -381,11 +625,13 @@ const uploadFile = async (file) => {
       status: "uploading",
     });
 
-    const identifier = generateFileIdentifier(file);
     const fileHash = await calculateFileHash(file);
 
     // 初始化上传
-    const { uploadId, uploadedChunks = [] } = await initFileUpload(file);
+    const { uploadId, uploadedChunks = [] } = await initFileUpload(
+      file,
+      fileHash
+    );
 
     // 更新状态为已上传分片数
     updateChunkStatus(file.name, uploadedChunks.length, totalChunks);
@@ -394,6 +640,7 @@ const uploadFile = async (file) => {
     const chunkTasks = [];
 
     for (let index = 0; index < totalChunks; index++) {
+      // 跳过上传过的分片
       if (uploadedChunks.includes(index)) continue;
 
       const start = index * CHUNK_SIZE;
@@ -425,11 +672,14 @@ const uploadFile = async (file) => {
       status: result.success ? "completed" : "failed",
     });
 
+    // 添加到上传结果
+    uploadResults.value.push({ file, ...result });
+
     return result;
   } catch (error) {
     // 更新状态为错误
     updateFileStatus(file.name, { status: "error" });
-
+    console.error(`文件 ${file.name} 上传失败:`, error);
     return {
       success: false,
       error: error.message || "上传过程中发生错误",
@@ -437,7 +687,7 @@ const uploadFile = async (file) => {
   }
 };
 
-// 修改后的 uploadFiles 方法（并行上传文件）
+// uploadFiles 方法
 const uploadFiles = async () => {
   if (files.value.length === 0) {
     uploadStatus.value = "请先选择文件";
@@ -446,49 +696,36 @@ const uploadFiles = async () => {
 
   uploadStatus.value = "开始上传文件...";
   uploading.value = true;
-  uploadResults.value = [];
 
   try {
-    // 初始化所有文件状态
-    files.value.forEach((file) => {
+    // 修改过滤条件，包含所有未完成上传的文件
+    const unuploadedFiles = files.value.filter(
+      (file) =>
+        !fileStatus[file.name] ||
+        fileStatus[file.name].status === "等待上传" ||
+        fileStatus[file.name].status === "error" ||
+        fileStatus[file.name].status === "canceled"
+    );
+
+    // 如果没有需要上传的文件，提示用户
+    if (unuploadedFiles.length === 0) {
+      uploadStatus.value = "没有需要上传的文件";
+      uploading.value = false;
+      return;
+    }
+
+    // 显示开始上传的文件数量
+    uploadStatus.value = `开始上传 ${unuploadedFiles.length} 个文件...`;
+
+    for (const file of unuploadedFiles) {
       updateFileStatus(file.name, {
-        status: "pending",
+        status: "等待上传",
         progress: 0,
       });
-    });
+      await uploadFile(file);
+    }
 
-    // 并行上传所有文件
-    const uploadPromises = files.value.map((file) => uploadFile(file));
-    const results = await Promise.allSettled(uploadPromises);
-
-    // 处理结果
-    results.forEach((result, index) => {
-      const file = files.value[index];
-      const value =
-        result.status === "fulfilled"
-          ? result.value
-          : {
-              success: false,
-              error: result.reason?.message || "未知错误",
-            };
-
-      uploadResults.value.push({ file, ...value });
-
-      if (value.success) {
-        uploadStatus.value += `\n${file.name} 上传成功`;
-      } else {
-        uploadStatus.value += `\n${file.name} 上传失败: ${value.error}`;
-      }
-    });
-
-    // 计算统计信息
-    const successCount = results.filter(
-      (r) => r.status === "fulfilled" && r.value.success
-    ).length;
-
-    uploadStatus.value += `\n上传完成! 成功: ${successCount}, 失败: ${
-      files.value.length - successCount
-    }`;
+    uploadStatus.value = `所有文件上传完成! (共 ${unuploadedFiles.length} 个)`;
   } catch (error) {
     console.error("上传过程出错:", error);
     uploadStatus.value = `上传失败: ${error.message}`;
@@ -1017,6 +1254,8 @@ h1 {
   margin-top: 8px;
   position: relative;
   overflow: hidden;
+  display: flex;
+  padding-left: 5px;
 }
 
 .progress-bar {
@@ -1028,12 +1267,38 @@ h1 {
 
 .progress-text {
   font-size: 12px;
-  color: #555;
-  text-align: center;
-  position: absolute;
-  top: 0;
-  width: 100%;
-  line-height: 8px;
+}
+.control-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.control-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: #e9ecef;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.control-btn:hover {
+  background: #dee2e6;
+}
+
+.control-btn.cancel {
+  background: #ffd5d5;
+  color: #dc3545;
+}
+
+.control-btn.cancel:hover {
+  background: #ffc1c1;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 @keyframes float {
   0% {
