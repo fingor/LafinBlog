@@ -141,35 +141,11 @@
         </div>
       </div>
     </div>
-
-    <div class="features">
-      <div class="feature">
-        <div class="icon"><i class="fas fa-bolt"></i></div>
-        <h3>分片上传</h3>
-        <p>将大文件分割为小块上传，提高稳定性和上传效率</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><i class="fas fa-sync-alt"></i></div>
-        <h3>断点续传</h3>
-        <p>网络中断后可以从中断点继续上传，无需重传</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><i class="fas fa-chart-line"></i></div>
-        <h3>进度监控</h3>
-        <p>实时显示每个文件的上传进度和状态</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><i class="fas fa-shield-alt"></i></div>
-        <h3>文件校验</h3>
-        <p>自动检查文件完整性和大小，确保上传正确</p>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed } from "vue";
-import SparkMD5 from "spark-md5";
 import axios from "axios";
 
 const files = ref([]);
@@ -269,18 +245,16 @@ const getButtonText = (file) => {
   }
   return "上传";
 };
-
-// 合并的移除和取消方法
-const handleRemove = async (index, file) => {
+// 封装文件清理的公共逻辑
+const cleanupFileResources = async (file) => {
   try {
-    console.log("fileStatus[file.name]", fileStatus[file.name]);
-
-    // 如果文件正在上传中，先取消上传
-    if (fileStatus[file.name]?.status === "uploading") {
-      await cancelUpload(file);
+    // 中断上传请求
+    if (uploadControllers[file.name]) {
+      uploadControllers[file.name].abort();
+      delete uploadControllers[file.name];
     }
 
-    // 如果文件已经初始化了上传（有uploadId），通知服务器清理分片
+    // 如果文件有uploadId，通知服务器清理分片
     if (file.uploadId) {
       await axios.post("/api/upload/cancel", {
         fileName: file.name,
@@ -288,28 +262,33 @@ const handleRemove = async (index, file) => {
       });
     }
 
-    // 清理相关状态
-    if (uploadControllers[file.name]) {
-      uploadControllers[file.name].abort();
-      delete uploadControllers[file.name];
-    }
+    // 清理状态
     delete pausedFiles[file.name];
     delete fileStatus[file.name];
 
-    // 最后从列表中移除文件
+    return true;
+  } catch (error) {
+    console.error(`清理文件资源失败: ${error}`);
+    return false;
+  }
+};
+// 合并的移除和取消方法
+const handleRemove = async (index, file) => {
+  try {
+    // 如果文件正在上传中，先取消上传
+    if (fileStatus[file.name]?.status === "uploading") {
+      await cancelUpload(file);
+    } else {
+      await cleanupFileResources(file);
+    }
+
+    // 从列表中移除文件
     files.value.splice(index, 1);
     uploadStatus.value = `已移除文件: ${file.name}`;
   } catch (error) {
     console.error(`移除文件失败: ${error}`);
     uploadStatus.value = `移除文件失败: ${file.name}`;
   }
-};
-// 移除单个文件
-const removeFile = (index) => {
-  const removedFile = files.value[index];
-  files.value.splice(index, 1);
-  delete progressMap.value[removedFile.name];
-  uploadStatus.value = `已移除文件: ${removedFile.name}`;
 };
 
 // 修改重置方法
@@ -389,21 +368,9 @@ const resumeUpload = async (file) => {
 
 // 取消单个文件上传
 const cancelUpload = async (file) => {
-  try {
-    // 中断上传请求
-    uploadControllers[file.name]?.abort();
-    // 通知服务器清理文件分片
-    await axios.post("/api/upload/cancel", {
-      fileName: file.name,
-      uploadId: file.uploadId,
-    });
-    // 更新状态
+  const success = await cleanupFileResources(file);
+  if (success) {
     updateFileStatus(file.name, { status: "canceled" });
-    // 清理相关状态
-    delete uploadControllers[file.name];
-    delete pausedFiles[file.name];
-  } catch (error) {
-    console.error(`取消上传失败: ${error}`);
   }
 };
 // 初始化文件上传
@@ -746,10 +713,6 @@ const uploadFiles = async () => {
   transition: transform 0.3s ease;
 }
 
-.container:hover {
-  transform: translateY(-5px);
-}
-
 header {
   text-align: center;
   margin-bottom: 30px;
@@ -968,7 +931,6 @@ h1 {
 
 .file-info li:hover {
   background-color: #f0f7ff;
-  transform: translateX(5px);
 }
 
 .file-details {
