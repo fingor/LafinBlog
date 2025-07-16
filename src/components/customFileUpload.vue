@@ -112,8 +112,7 @@
           <i class="fas fa-redo"></i> 重置
         </button>
       </div>
-      <div v-if="uploadStatus" :class="['status', statusClass]">
-        <i :class="statusIcon" style="margin-right: 10px"></i>
+      <div v-if="uploadStatus">
         {{ uploadStatus }}
       </div>
       <div v-if="uploadResults.length" class="results-container">
@@ -157,6 +156,7 @@ const uploading = ref(false);
 const progressMap = ref({});
 const uploadControllers = reactive({}); // 存储每个文件的 AbortController
 const pausedFiles = reactive({}); // 存储暂停状态
+const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks
 
 // 添加状态映射对象
 const statusMap = {
@@ -170,7 +170,6 @@ const statusMap = {
   canceled: "已取消",
   hash_error: "哈希计算失败",
 };
-
 // 添加一个获取显示状态的方法
 const getDisplayStatus = (status) => {
   return statusMap[status] || status;
@@ -179,7 +178,6 @@ const getDisplayStatus = (status) => {
 const totalFileSize = computed(() => {
   return files.value.reduce((total, file) => total + file.size, 0);
 });
-
 // 格式化文件大小
 const formatBytes = (bytes, decimals = 2) => {
   if (bytes === 0) return "0 Bytes";
@@ -189,26 +187,24 @@ const formatBytes = (bytes, decimals = 2) => {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
 };
-
 // 打开文件浏览器
 const openFileBrowser = () => {
   fileInput.value.click();
 };
-
 // 处理文件选择
 const handleFileSelect = (e) => {
   addFiles(Array.from(e.target.files));
   e.target.value = "";
 };
-
 // 处理拖放文件
 const handleDrop = (e) => {
   dragOver.value = false;
   addFiles(Array.from(e.dataTransfer.files));
 };
-
 // 添加文件到列表
 const addFiles = (newFiles) => {
+  console.log("newFiles", newFiles);
+
   // 过滤重复文件
   const existingFileNames = files.value.map((f) => f.name);
   const uniqueFiles = newFiles.filter(
@@ -245,139 +241,159 @@ const getButtonText = (file) => {
   }
   return "上传";
 };
-// 封装文件清理的公共逻辑
-const cleanupFileResources = async (file) => {
+// uploadFile 方法（并行上传分片）
+const uploadFile = async (file) => {
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
   try {
-    // 中断上传请求
-    if (uploadControllers[file.name]) {
-      uploadControllers[file.name].abort();
-      delete uploadControllers[file.name];
-    }
-
-    // 如果文件有uploadId，通知服务器清理分片
-    if (file.uploadId) {
-      await axios.post("/api/upload/cancel", {
-        fileName: file.name,
-        uploadId: file.uploadId,
-      });
-    }
-
-    // 清理状态
-    delete pausedFiles[file.name];
-    delete fileStatus[file.name];
-
-    return true;
-  } catch (error) {
-    console.error(`清理文件资源失败: ${error}`);
-    return false;
-  }
-};
-// 合并的移除和取消方法
-const handleRemove = async (index, file) => {
-  try {
-    // 如果文件正在上传中，先取消上传
-    if (fileStatus[file.name]?.status === "uploading") {
-      await cancelUpload(file);
-    } else {
-      await cleanupFileResources(file);
-    }
-
-    // 从列表中移除文件
-    files.value.splice(index, 1);
-    uploadStatus.value = `已移除文件: ${file.name}`;
-  } catch (error) {
-    console.error(`移除文件失败: ${error}`);
-    uploadStatus.value = `移除文件失败: ${file.name}`;
-  }
-};
-
-// 修改重置方法
-const resetUploader = async () => {
-  try {
-    // 中断所有进行中的上传
-    Object.values(uploadControllers).forEach((controller) => {
-      controller.abort();
+    // 初始化文件上传状态
+    updateFileStatus(file.name, {
+      totalChunks,
+      uploadedChunks: 0,
+      progress: 0,
+      status: "uploading",
     });
-
-    // 获取所有未完成的上传ID
-    const incompleteFiles = files.value.filter(
-      (file) => fileStatus[file.name]?.status !== "completed"
-    );
-
-    // 通知服务器清理所有未完成文件的分片
-    await Promise.all(
-      incompleteFiles.map((file) =>
-        axios
-          .post("/api/upload/cancel", {
-            fileName: file.name,
-            uploadId: file.uploadId,
-          })
-          .catch((err) => console.error(`清理文件 ${file.name} 失败:`, err))
-      )
-    );
-
-    // 重置所有状态
-    files.value = [];
-    uploadResults.value = [];
-    uploadStatus.value = "";
-    uploading.value = false;
-    progressMap.value = {};
-    Object.keys(uploadControllers).forEach(
-      (key) => delete uploadControllers[key]
-    );
-    Object.keys(pausedFiles).forEach((key) => delete pausedFiles[key]);
-  } catch (error) {
-    console.error("重置失败:", error);
-  }
-};
-
-// 判断文件是否暂停
-const isPaused = (fileName) => {
-  return pausedFiles[fileName] === true;
-};
-
-// 切换文件上传状态
-const toggleUpload = (file) => {
-  if (isPaused(file.name)) {
-    // 恢复上传
-    pausedFiles[file.name] = false;
-    resumeUpload(file);
-  } else {
-    // 暂停上传
-    pausedFiles[file.name] = true;
-    uploadControllers[file.name]?.abort();
-  }
-};
-
-// 恢复上传
-const resumeUpload = async (file) => {
-  try {
     const fileHash = await calculateFileHash(file);
-    // 获取已上传的分片信息
+    // 初始化上传
     const { uploadId, uploadedChunks = [] } = await initFileUpload(
       file,
       fileHash
     );
-    // 继续上传
-    await uploadFile(file, uploadId, fileHash, uploadedChunks);
+    // 更新状态为已上传分片数
+    updateChunkStatus(file.name, uploadedChunks.length, totalChunks);
+    // 创建所有分片的上传任务
+    const chunkTasks = [];
+    for (let index = 0; index < totalChunks; index++) {
+      // 跳过上传过的分片
+      if (uploadedChunks.includes(index)) continue;
+      const start = index * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk = file.slice(start, end);
+      chunkTasks.push(() =>
+        chunkConcurrency(() =>
+          uploadChunk(file, uploadId, chunk, index, totalChunks)
+        ).then(() => {
+          // 每个分片上传成功后更新状态
+          updateChunkStatus(
+            file.name,
+            fileStatus[file.name].uploadedChunks + 1,
+            totalChunks
+          );
+        })
+      );
+    }
+    // 并行上传所有分片
+    await Promise.all(chunkTasks.map((task) => task()));
+    // 完成上传
+    const result = await completeFileUpload(
+      file,
+      uploadId,
+      fileHash,
+      totalChunks
+    );
+    // 更新状态为完成
+    updateFileStatus(file.name, {
+      status: result.success ? "completed" : "failed",
+    });
+    // 添加到上传结果
+    uploadResults.value.push({ file, ...result });
+    return result;
   } catch (error) {
-    console.error(`恢复上传失败: ${error}`);
+    // 更新状态为错误
     updateFileStatus(file.name, { status: "error" });
+    console.error(`文件 ${file.name} 上传失败:`, error);
+    return {
+      success: false,
+      error: error.message || "上传过程中发生错误",
+    };
   }
 };
+// uploadFiles 方法
+const uploadFiles = async () => {
+  if (files.value.length === 0) {
+    uploadStatus.value = "请先选择文件";
+    return;
+  }
 
-// 取消单个文件上传
-const cancelUpload = async (file) => {
-  const success = await cleanupFileResources(file);
-  if (success) {
-    updateFileStatus(file.name, { status: "canceled" });
+  // 检查网络状态
+  if (!navigator.onLine) {
+    uploadStatus.value = "网络不可用，请检查网络连接";
+    return;
+  }
+
+  uploadStatus.value = "开始上传文件...";
+  uploading.value = true;
+
+  try {
+    const unuploadedFiles = files.value.filter((file) => {
+      const status = fileStatus[file.name]?.status;
+      return (
+        !status ||
+        status === "waiting" ||
+        status === "paused" ||
+        status === "error" ||
+        status === "canceled"
+      );
+    });
+
+    if (unuploadedFiles.length === 0) {
+      uploadStatus.value = "没有需要上传的文件";
+      uploading.value = false;
+      return;
+    }
+
+    uploadStatus.value = `开始上传 ${unuploadedFiles.length} 个文件...`;
+
+    // 存储上传结果
+    const results = [];
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const file of unuploadedFiles) {
+      try {
+        updateFileStatus(file.name, {
+          status: "waiting",
+          progress: 0,
+        });
+
+        // 上传文件并获取结果
+        const result = await uploadFile(file);
+        results.push(result);
+
+        if (result.success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch (error) {
+        console.error(`文件 ${file.name} 上传失败:`, error);
+        errorCount++;
+        updateFileStatus(file.name, {
+          status: "error",
+          error: error.message || "上传失败",
+        });
+      }
+    }
+
+    // 根据结果更新状态
+    if (errorCount === 0) {
+      uploadStatus.value = `所有文件上传完成! (共 ${successCount} 个)`;
+    } else if (successCount === 0) {
+      uploadStatus.value = `上传失败! 所有文件均未成功上传`;
+    } else {
+      uploadStatus.value = `上传完成，成功 ${successCount} 个, 失败 ${errorCount} 个`;
+    }
+  } catch (globalError) {
+    console.error("上传过程出错:", globalError);
+    uploadStatus.value = `上传失败: ${globalError.message}`;
+  } finally {
+    uploading.value = false;
   }
 };
 // 初始化文件上传
 // 1.获取上传 ID 2.断点续传支持 3.文件查重
 const initFileUpload = async (file, fileHash) => {
   try {
-    const response = await axios.post("/api/upload/init", {
+    const response = await axios.post("/api/uploadsBig/init", {
       fileName: file.name,
       fileSize: file.size,
       fileHash,
@@ -388,7 +404,6 @@ const initFileUpload = async (file, fileHash) => {
     throw new Error("无法初始化上传服务");
   }
 };
-
 // 分片上传模拟函数
 // const uploadChunk = async (file, start, end) => {
 //   return new Promise((resolve) => {
@@ -429,7 +444,7 @@ const uploadChunk = async (file, uploadId, chunk, index, totalChunks) => {
       },
     };
 
-    await axios.post("/api/upload/chunk", formData, config);
+    await axios.post("/api/uploadsBig/chunk", formData, config);
     return { success: true };
   } catch (error) {
     if (error.name === "AbortError") {
@@ -440,12 +455,13 @@ const uploadChunk = async (file, uploadId, chunk, index, totalChunks) => {
   }
 };
 // 完成文件上传
-const completeFileUpload = async (file, uploadId, fileHash) => {
+const completeFileUpload = async (file, uploadId, fileHash, totalChunks) => {
   try {
-    const response = await axios.post("/api/upload/complete", {
+    const response = await axios.post("/api/uploadsBig/complete", {
       uploadId,
       fileName: file.name,
       fileHash,
+      totalChunks,
     });
     return {
       success: true,
@@ -467,14 +483,12 @@ const allHashesCalculated = computed(() => {
       fileStatus[file.name]?.status !== "pending"
   );
 });
-
 // 计算是否有文件正在计算哈希
 const isCalculating = computed(() => {
   return files.value.some(
     (file) => fileStatus[file.name]?.status === "hashing"
   );
 });
-
 // 更新上传按钮的文本
 const getUploadButtonText = () => {
   if (uploading.value) return "上传中...";
@@ -483,7 +497,6 @@ const getUploadButtonText = () => {
   if (!allHashesCalculated.value) return "准备哈希计算...";
   return "一键上传";
 };
-
 // 计算已完成哈希的文件数量
 const completedHashFiles = computed(() => {
   return files.value.filter(
@@ -497,9 +510,10 @@ const calculateFileHash = (file) => {
     const worker = new Worker(
       new URL("@/workers/hash.worker.js", import.meta.url)
     );
+    console.log("开始计算哈希:", worker);
     worker.postMessage({
       file,
-      chunkSize: 2 * 1024 * 1024, // 2MB chunks
+      chunkSize: CHUNK_SIZE, // 2MB chunks
     });
 
     worker.onmessage = (e) => {
@@ -526,16 +540,142 @@ const calculateFileHash = (file) => {
     };
   });
 };
+// 封装文件清理的公共逻辑
+const cleanupFileResources = async (file) => {
+  try {
+    // 中断上传请求
+    if (uploadControllers[file.name]) {
+      uploadControllers[file.name].abort();
+      delete uploadControllers[file.name];
+    }
+
+    // 如果文件有uploadId，通知服务器清理分片
+    if (file.uploadId) {
+      await axios.post("/api/uploadsBig/cancel", {
+        fileName: file.name,
+        uploadId: file.uploadId,
+      });
+    }
+
+    // 清理状态
+    delete pausedFiles[file.name];
+    delete fileStatus[file.name];
+
+    return true;
+  } catch (error) {
+    console.error(`清理文件资源失败: ${error}`);
+    return false;
+  }
+};
+// 合并的移除和取消方法
+const handleRemove = async (index, file) => {
+  try {
+    // 如果文件正在上传中，先取消上传
+    if (fileStatus[file.name]?.status === "uploading") {
+      await cancelUpload(file);
+    } else {
+      await cleanupFileResources(file);
+    }
+
+    // 从列表中移除文件
+    files.value.splice(index, 1);
+    uploadStatus.value = `已移除文件: ${file.name}`;
+  } catch (error) {
+    console.error(`移除文件失败: ${error}`);
+    uploadStatus.value = `移除文件失败: ${file.name}`;
+  }
+};
+// 修改重置方法
+const resetUploader = async () => {
+  try {
+    // 中断所有进行中的上传
+    Object.values(uploadControllers).forEach((controller) => {
+      controller.abort();
+    });
+
+    // 获取所有未完成的上传ID
+    const incompleteFiles = files.value.filter(
+      (file) => fileStatus[file.name]?.status !== "completed"
+    );
+
+    // 通知服务器清理所有未完成文件的分片
+    await Promise.all(
+      incompleteFiles.map((file) =>
+        axios
+          .post("/api/uploadsBig/cancel", {
+            fileName: file.name,
+            uploadId: file.uploadId,
+          })
+          .catch((err) => console.error(`清理文件 ${file.name} 失败:`, err))
+      )
+    );
+
+    // 重置所有状态
+    files.value = [];
+    uploadResults.value = [];
+    uploadStatus.value = "";
+    uploading.value = false;
+    progressMap.value = {};
+    Object.keys(uploadControllers).forEach(
+      (key) => delete uploadControllers[key]
+    );
+    Object.keys(pausedFiles).forEach((key) => delete pausedFiles[key]);
+  } catch (error) {
+    console.error("重置失败:", error);
+  }
+};
+// 判断文件是否暂停
+const isPaused = (fileName) => {
+  return pausedFiles[fileName] === true;
+};
+// 切换文件上传状态
+const toggleUpload = (file) => {
+  if (isPaused(file.name)) {
+    // 恢复上传
+    pausedFiles[file.name] = false;
+    resumeUpload(file);
+  } else {
+    // 暂停上传
+    pausedFiles[file.name] = true;
+    uploadControllers[file.name]?.abort();
+  }
+};
+// 恢复上传
+const resumeUpload = async (file) => {
+  try {
+    pausedFiles[file.name] = false; // 清除暂停标志
+    // 更新状态避免卡在"paused"
+    updateFileStatus(file.name, {
+      status: "waiting",
+    });
+    const fileHash = await calculateFileHash(file);
+    // 获取已上传的分片信息
+    const { uploadId, uploadedChunks = [] } = await initFileUpload(
+      file,
+      fileHash
+    );
+    // 继续上传
+    await uploadFile(file, uploadId, fileHash, uploadedChunks);
+  } catch (error) {
+    console.error(`恢复上传失败: ${error}`);
+    updateFileStatus(file.name, { status: "error" });
+  }
+};
+// 取消单个文件上传
+const cancelUpload = async (file) => {
+  const success = await cleanupFileResources(file);
+  if (success) {
+    updateFileStatus(file.name, { status: "canceled" });
+  }
+};
 // 添加并发控制函数
 const createConcurrencyPool = (limit) => {
   let activeCount = 0;
   const queue = [];
-
   const run = async (task) => {
     if (activeCount >= limit) {
       await new Promise((resolve) => queue.push(resolve));
     }
-
     activeCount++;
     try {
       return await task();
@@ -544,14 +684,12 @@ const createConcurrencyPool = (limit) => {
       if (queue.length) queue.shift()();
     }
   };
-
   return run;
 };
 // 每个文件的并发控制 (6个分片并行)
 const chunkConcurrency = createConcurrencyPool(6);
 // 记录每个文件的上传状态
 const fileStatus = reactive({});
-
 // 更新文件上传状态函数
 const updateFileStatus = (fileName, newStatus) => {
   if (!fileStatus[fileName]) {
@@ -568,136 +706,11 @@ const updateFileStatus = (fileName, newStatus) => {
     ...newStatus,
   });
 };
-
 // 更新分片上传状态函数
 const updateChunkStatus = (fileName, uploaded, total) => {
   if (fileStatus[fileName]) {
     fileStatus[fileName].uploadedChunks = uploaded;
     fileStatus[fileName].progress = Math.round((uploaded / total) * 100);
-  }
-};
-
-// 修改后的 uploadFile 方法（并行上传分片）
-// 修改 uploadFile 方法，使其支持单文件上传
-const uploadFile = async (file) => {
-  const CHUNK_SIZE = 2 * 1024 * 1024;
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-  try {
-    // 初始化文件上传状态
-    updateFileStatus(file.name, {
-      totalChunks,
-      uploadedChunks: 0,
-      progress: 0,
-      status: "uploading",
-    });
-
-    const fileHash = await calculateFileHash(file);
-
-    // 初始化上传
-    const { uploadId, uploadedChunks = [] } = await initFileUpload(
-      file,
-      fileHash
-    );
-
-    // 更新状态为已上传分片数
-    updateChunkStatus(file.name, uploadedChunks.length, totalChunks);
-
-    // 创建所有分片的上传任务
-    const chunkTasks = [];
-
-    for (let index = 0; index < totalChunks; index++) {
-      // 跳过上传过的分片
-      if (uploadedChunks.includes(index)) continue;
-
-      const start = index * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, file.size);
-      const chunk = file.slice(start, end);
-
-      chunkTasks.push(() =>
-        chunkConcurrency(() =>
-          uploadChunk(file, uploadId, chunk, index, totalChunks)
-        ).then(() => {
-          // 每个分片上传成功后更新状态
-          updateChunkStatus(
-            file.name,
-            fileStatus[file.name].uploadedChunks + 1,
-            totalChunks
-          );
-        })
-      );
-    }
-
-    // 并行上传所有分片
-    await Promise.all(chunkTasks.map((task) => task()));
-
-    // 完成上传
-    const result = await completeFileUpload(file, uploadId, fileHash);
-
-    // 更新状态为完成
-    updateFileStatus(file.name, {
-      status: result.success ? "completed" : "failed",
-    });
-
-    // 添加到上传结果
-    uploadResults.value.push({ file, ...result });
-
-    return result;
-  } catch (error) {
-    // 更新状态为错误
-    updateFileStatus(file.name, { status: "error" });
-    console.error(`文件 ${file.name} 上传失败:`, error);
-    return {
-      success: false,
-      error: error.message || "上传过程中发生错误",
-    };
-  }
-};
-
-// uploadFiles 方法
-const uploadFiles = async () => {
-  if (files.value.length === 0) {
-    uploadStatus.value = "请先选择文件";
-    return;
-  }
-
-  uploadStatus.value = "开始上传文件...";
-  uploading.value = true;
-
-  try {
-    // 修改过滤条件，包含所有未完成上传的文件
-    const unuploadedFiles = files.value.filter(
-      (file) =>
-        !fileStatus[file.name] ||
-        fileStatus[file.name].status === "等待上传" ||
-        fileStatus[file.name].status === "error" ||
-        fileStatus[file.name].status === "canceled"
-    );
-
-    // 如果没有需要上传的文件，提示用户
-    if (unuploadedFiles.length === 0) {
-      uploadStatus.value = "没有需要上传的文件";
-      uploading.value = false;
-      return;
-    }
-
-    // 显示开始上传的文件数量
-    uploadStatus.value = `开始上传 ${unuploadedFiles.length} 个文件...`;
-
-    for (const file of unuploadedFiles) {
-      updateFileStatus(file.name, {
-        status: "等待上传",
-        progress: 0,
-      });
-      await uploadFile(file);
-    }
-
-    uploadStatus.value = `所有文件上传完成! (共 ${unuploadedFiles.length} 个)`;
-  } catch (error) {
-    console.error("上传过程出错:", error);
-    uploadStatus.value = `上传失败: ${error.message}`;
-  } finally {
-    uploading.value = false;
   }
 };
 </script>
