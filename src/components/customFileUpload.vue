@@ -57,13 +57,14 @@
                   <template v-if="fileStatus[file.name].status === 'hashing'">
                     ({{ fileStatus[file.name].hashProgress }}%)
                   </template>
-                  <template
+                  <!-- <template
                     v-else-if="fileStatus[file.name].status === 'waiting'"
                   >
                     (就绪)
-                  </template>
+                  </template> -->
                   <template v-else>
-                    ({{ fileStatus[file.name].uploadedChunks }}/{{
+                    <!-- ({{ fileStatus[file.name].uploadedChunksCount }}/{{ fileStatus[file.name].totalChunks }}) -->
+                    ({{ fileStatus[file.name].uploadedChunks.length }}/{{
                       fileStatus[file.name].totalChunks
                     }})
                   </template>
@@ -75,9 +76,9 @@
               <button
                 class="control-btn"
                 @click="
-                  fileStatus[file.name]?.status === 'uploading'
+                  fileStatus[file.name]?.status === 'uploading' || fileStatus[file.name]?.status === 'paused'
                     ? toggleUpload(file)
-                    : uploadFile(file)
+                    : startUpload(file)
                 "
                 :disabled="fileStatus[file.name]?.status === 'hashing'"
               >
@@ -236,53 +237,216 @@ const addFiles = (newFiles) => {
 // 获取按钮文本
 const getButtonText = (file) => {
   const status = fileStatus[file.name]?.status;
+
   if (status === "uploading") {
-    return isPaused(file.name) ? "恢复" : "暂停";
+    return "暂停";
+  }
+  if (status === "paused") {
+    return "恢复";
+  }
+  if (status === "completed") {
+    return "已完成";
   }
   return "上传";
 };
-// uploadFile 方法（并行上传分片）
-const uploadFile = async (file) => {
-  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+const startUpload = (file) => {
+  updateFileStatus(file.name, { status: "uploading" });
+  uploadFile(file);
+};
+// uploadFile 方法（并行上传分片，支持断点续传）
+// const uploadFile = async (
+//   file,
+//   uploadIdParam,
+//   fileHashParam,
+//   uploadedChunksParam
+// ) => {
+//   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+//   try {
+//     // 初始化文件上传状态
+//     updateFileStatus(file.name, {
+//       totalChunks,
+//       uploadedChunks: 0,
+//       progress: 0,
+//       status: "uploading",
+//     });
+//     // 断点续传参数
+//     const fileHash = fileHashParam || (await calculateFileHash(file));
+//     const { uploadId, uploadedChunks = [] } = uploadIdParam
+//       ? { uploadId: uploadIdParam, uploadedChunks: uploadedChunksParam || [] }
+//       : await initFileUpload(file, fileHash);
+
+//     // 更新状态为已上传分片数
+//     updateChunkStatus(file.name, uploadedChunks.length, totalChunks);
+
+//     // 创建所有分片的上传任务
+//     const chunkTasks = [];
+//     for (let index = 0; index < totalChunks; index++) {
+//       if (uploadedChunks.includes(index)) continue;
+//       const start = index * CHUNK_SIZE;
+//       const end = Math.min(start + CHUNK_SIZE, file.size);
+//       const chunk = file.slice(start, end);
+//       chunkTasks.push(() =>
+//         chunkConcurrency(() =>
+//           uploadChunk(file, uploadId, chunk, index, totalChunks)
+//         ).then(() => {
+//           updateChunkStatus(
+//             file.name,
+//             fileStatus[file.name].uploadedChunks + 1,
+//             totalChunks
+//           );
+//         })
+//       );
+//     }
+//     await Promise.all(chunkTasks.map((task) => task()));
+//     const result = await completeFileUpload(
+//       file,
+//       uploadId,
+//       fileHash,
+//       totalChunks
+//     );
+//     updateFileStatus(file.name, {
+//       status: result.success ? "completed" : "failed",
+//     });
+//     uploadResults.value.push({ file, ...result });
+//     return result;
+//   } catch (error) {
+//     updateFileStatus(file.name, { status: "error" });
+//     console.error(`文件 ${file.name} 上传失败:`, error);
+//     return {
+//       success: false,
+//       error: error.message || "上传过程中发生错误",
+//     };
+//   }
+// };
+
+const uploadFile = async (
+  file,
+  uploadIdParam = null,
+  fileHashParam = null,
+  uploadedChunksParam = [],
+  totalChunksParam = null
+) => {
+  const totalChunks = totalChunksParam || Math.ceil(file.size / CHUNK_SIZE);
+
   try {
     // 初始化文件上传状态
     updateFileStatus(file.name, {
       totalChunks,
-      uploadedChunks: 0,
-      progress: 0,
+      uploadedChunks: uploadedChunksParam,
+      progress: Math.round((uploadedChunksParam.length / totalChunks) * 100),
       status: "uploading",
     });
-    const fileHash = await calculateFileHash(file);
-    // 初始化上传
-    const { uploadId, uploadedChunks = [] } = await initFileUpload(
-      file,
-      fileHash
-    );
-    // 更新状态为已上传分片数
-    updateChunkStatus(file.name, uploadedChunks.length, totalChunks);
+
+    // 获取文件哈希和上传ID
+    const fileHash = fileHashParam || (await calculateFileHash(file));
+    const { uploadId, uploadedChunks = [] } = uploadIdParam
+      ? {
+          uploadId: uploadIdParam,
+          uploadedChunks: uploadedChunksParam,
+        }
+      : await initFileUpload(file, fileHash);
+
+    // 保存上传ID和文件哈希到状态
+    updateFileStatus(file.name, {
+      uploadId,
+      fileHash,
+      uploadedChunks:
+        uploadedChunksParam.length > 0 ? uploadedChunksParam : uploadedChunks,
+      progress: Math.round(
+        ((uploadedChunksParam.length > 0 ? uploadedChunksParam : uploadedChunks)
+          .length /
+          totalChunks) *
+          100
+      ),
+      status: "uploading",
+    });
+
     // 创建所有分片的上传任务
     const chunkTasks = [];
     for (let index = 0; index < totalChunks; index++) {
-      // 跳过上传过的分片
-      if (uploadedChunks.includes(index)) continue;
+      // 跳过已上传的分片
+      if (uploadedChunks.includes(index) || uploadedChunksParam.includes(index))
+        continue;
+
       const start = index * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, file.size);
       const chunk = file.slice(start, end);
+
       chunkTasks.push(() =>
-        chunkConcurrency(() =>
-          uploadChunk(file, uploadId, chunk, index, totalChunks)
-        ).then(() => {
-          // 每个分片上传成功后更新状态
-          updateChunkStatus(
-            file.name,
-            fileStatus[file.name].uploadedChunks + 1,
-            totalChunks
-          );
+        chunkConcurrency(async () => {
+          // 在每个分片上传前检查是否被暂停
+          if (pausedFiles[file.name]) {
+            throw new Error("Upload paused");
+          }
+          
+          const result = await uploadChunk(file, uploadId, chunk, index, totalChunks);
+          
+          // 上传成功后再次检查是否被暂停
+          if (pausedFiles[file.name]) {
+            throw new Error("Upload paused");
+          }
+          
+          return result;
+        }).then(() => {
+          // 更新已上传的分片索引
+          const newUploaded = [...fileStatus[file.name].uploadedChunks, index];
+          updateFileStatus(file.name, {
+            uploadedChunks: newUploaded,
+            progress: Math.round((newUploaded.length / totalChunks) * 100),
+            status: "uploading",
+          });
         })
       );
     }
-    // 并行上传所有分片
-    await Promise.all(chunkTasks.map((task) => task()));
+
+    // 并行上传所有分片，但要处理暂停异常
+    // 每个分片开始前检查是否已暂停
+    if (pausedFiles[file.name]) {
+      return { success: false, aborted: true };
+    }
+
+    // 创建 Promise 数组用于存储正在进行的上传任务
+    const activeUploads = [];
+
+    for (const task of chunkTasks) {
+      // 再次检查是否已暂停
+      if (pausedFiles[file.name]) {
+        break;
+      }
+      
+      activeUploads.push(task());
+
+      // 等待当前分片上传完成
+      try {
+        await Promise.race([
+          Promise.all(activeUploads),
+          new Promise((_, reject) => {
+            const checkPaused = setInterval(() => {
+              if (pausedFiles[file.name]) {
+                clearInterval(checkPaused);
+                reject(new Error('Upload paused'));
+              }
+            }, 100);
+          })
+        ]);
+      } catch (error) {
+        if (error.message === 'Upload paused') {
+          return { success: false, aborted: true };
+        }
+        throw error;
+      }
+    }
+
+    // 如果已暂停，直接返回
+    if (pausedFiles[file.name]) {
+      return { success: false, aborted: true };
+    }
+    
+    // 检查是否被暂停，如果暂停则不完成上传
+    if (pausedFiles[file.name]) {
+      return { success: false, aborted: true };
+    }
+
     // 完成上传
     const result = await completeFileUpload(
       file,
@@ -290,17 +454,21 @@ const uploadFile = async (file) => {
       fileHash,
       totalChunks
     );
-    // 更新状态为完成
+
+    // 更新状态
     updateFileStatus(file.name, {
-      status: result.success ? "completed" : "failed",
+      status: result.success ? "completed" : "error",
     });
+
     // 添加到上传结果
     uploadResults.value.push({ file, ...result });
     return result;
   } catch (error) {
-    // 更新状态为错误
-    updateFileStatus(file.name, { status: "error" });
-    console.error(`文件 ${file.name} 上传失败:`, error);
+    if (error.name === "AbortError" || pausedFiles[file.name]) {
+      updateFileStatus(file.name, { status: "paused" });
+    } else {
+      updateFileStatus(file.name, { status: "error" });
+    }
     return {
       success: false,
       error: error.message || "上传过程中发生错误",
@@ -350,15 +518,9 @@ const uploadFiles = async () => {
 
     for (const file of unuploadedFiles) {
       try {
-        updateFileStatus(file.name, {
-          status: "waiting",
-          progress: 0,
-        });
-
         // 上传文件并获取结果
         const result = await uploadFile(file);
         results.push(result);
-
         if (result.success) {
           successCount++;
         } else {
@@ -629,33 +791,61 @@ const isPaused = (fileName) => {
   return pausedFiles[fileName] === true;
 };
 // 切换文件上传状态
-const toggleUpload = (file) => {
-  if (isPaused(file.name)) {
-    // 恢复上传
-    pausedFiles[file.name] = false;
-    resumeUpload(file);
-  } else {
-    // 暂停上传
+const toggleUpload = async (file) => {
+  const status = fileStatus[file.name]?.status;
+
+  if (status === "uploading") {
+    // 暂停操作
     pausedFiles[file.name] = true;
-    uploadControllers[file.name]?.abort();
+    
+    // 中止当前请求
+    if (uploadControllers[file.name]) {
+      uploadControllers[file.name].abort();
+      delete uploadControllers[file.name];
+    }
+
+    // 立即更新状态
+    updateFileStatus(file.name, { 
+      status: "paused",
+      // 保持已上传分片的进度
+      progress: fileStatus[file.name].progress,
+      uploadedChunks: fileStatus[file.name].uploadedChunks || []
+    });
+  } else if (status === "paused") {
+    // 恢复操作
+    pausedFiles[file.name] = false;
+    uploadControllers[file.name] = new AbortController();
+    
+    // 更新状态为上传中
+    updateFileStatus(file.name, { 
+      status: "uploading",
+      progress: fileStatus[file.name].progress,
+      uploadedChunks: fileStatus[file.name].uploadedChunks || []
+    });
+    
+    await resumeUpload(file);
+  } else {
+    await startUpload(file);
   }
 };
+
 // 恢复上传
 const resumeUpload = async (file) => {
   try {
-    pausedFiles[file.name] = false; // 清除暂停标志
-    // 更新状态避免卡在"paused"
-    updateFileStatus(file.name, {
-      status: "waiting",
-    });
-    const fileHash = await calculateFileHash(file);
-    // 获取已上传的分片信息
-    const { uploadId, uploadedChunks = [] } = await initFileUpload(
+    pausedFiles[file.name] = false;
+    updateFileStatus(file.name, { status: "uploading" });
+
+    // 获取文件的上传状态
+    const status = fileStatus[file.name];
+
+    // 继续上传剩余分片
+    await uploadFile(
       file,
-      fileHash
+      status.uploadId,
+      status.fileHash,
+      status.uploadedChunks,
+      status.totalChunks
     );
-    // 继续上传
-    await uploadFile(file, uploadId, fileHash, uploadedChunks);
   } catch (error) {
     console.error(`恢复上传失败: ${error}`);
     updateFileStatus(file.name, { status: "error" });
@@ -695,9 +885,11 @@ const updateFileStatus = (fileName, newStatus) => {
   if (!fileStatus[fileName]) {
     fileStatus[fileName] = {
       progress: 0,
-      uploadedChunks: 0,
+      uploadedChunks: [],
       totalChunks: 0,
       status: "pending",
+      uploadId: null,
+      fileHash: null,
     };
   }
 
