@@ -76,7 +76,8 @@
               <button
                 class="control-btn"
                 @click="
-                  fileStatus[file.name]?.status === 'uploading' || fileStatus[file.name]?.status === 'paused'
+                  fileStatus[file.name]?.status === 'uploading' ||
+                  fileStatus[file.name]?.status === 'paused'
                     ? toggleUpload(file)
                     : startUpload(file)
                 "
@@ -254,71 +255,6 @@ const startUpload = (file) => {
   uploadFile(file);
 };
 // uploadFile 方法（并行上传分片，支持断点续传）
-// const uploadFile = async (
-//   file,
-//   uploadIdParam,
-//   fileHashParam,
-//   uploadedChunksParam
-// ) => {
-//   const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-//   try {
-//     // 初始化文件上传状态
-//     updateFileStatus(file.name, {
-//       totalChunks,
-//       uploadedChunks: 0,
-//       progress: 0,
-//       status: "uploading",
-//     });
-//     // 断点续传参数
-//     const fileHash = fileHashParam || (await calculateFileHash(file));
-//     const { uploadId, uploadedChunks = [] } = uploadIdParam
-//       ? { uploadId: uploadIdParam, uploadedChunks: uploadedChunksParam || [] }
-//       : await initFileUpload(file, fileHash);
-
-//     // 更新状态为已上传分片数
-//     updateChunkStatus(file.name, uploadedChunks.length, totalChunks);
-
-//     // 创建所有分片的上传任务
-//     const chunkTasks = [];
-//     for (let index = 0; index < totalChunks; index++) {
-//       if (uploadedChunks.includes(index)) continue;
-//       const start = index * CHUNK_SIZE;
-//       const end = Math.min(start + CHUNK_SIZE, file.size);
-//       const chunk = file.slice(start, end);
-//       chunkTasks.push(() =>
-//         chunkConcurrency(() =>
-//           uploadChunk(file, uploadId, chunk, index, totalChunks)
-//         ).then(() => {
-//           updateChunkStatus(
-//             file.name,
-//             fileStatus[file.name].uploadedChunks + 1,
-//             totalChunks
-//           );
-//         })
-//       );
-//     }
-//     await Promise.all(chunkTasks.map((task) => task()));
-//     const result = await completeFileUpload(
-//       file,
-//       uploadId,
-//       fileHash,
-//       totalChunks
-//     );
-//     updateFileStatus(file.name, {
-//       status: result.success ? "completed" : "failed",
-//     });
-//     uploadResults.value.push({ file, ...result });
-//     return result;
-//   } catch (error) {
-//     updateFileStatus(file.name, { status: "error" });
-//     console.error(`文件 ${file.name} 上传失败:`, error);
-//     return {
-//       success: false,
-//       error: error.message || "上传过程中发生错误",
-//     };
-//   }
-// };
-
 const uploadFile = async (
   file,
   uploadIdParam = null,
@@ -378,14 +314,20 @@ const uploadFile = async (
           if (pausedFiles[file.name]) {
             throw new Error("Upload paused");
           }
-          
-          const result = await uploadChunk(file, uploadId, chunk, index, totalChunks);
-          
+
+          const result = await uploadChunk(
+            file,
+            uploadId,
+            chunk,
+            index,
+            totalChunks
+          );
+
           // 上传成功后再次检查是否被暂停
           if (pausedFiles[file.name]) {
             throw new Error("Upload paused");
           }
-          
+
           return result;
         }).then(() => {
           // 更新已上传的分片索引
@@ -413,7 +355,7 @@ const uploadFile = async (
       if (pausedFiles[file.name]) {
         break;
       }
-      
+
       activeUploads.push(task());
 
       // 等待当前分片上传完成
@@ -424,13 +366,13 @@ const uploadFile = async (
             const checkPaused = setInterval(() => {
               if (pausedFiles[file.name]) {
                 clearInterval(checkPaused);
-                reject(new Error('Upload paused'));
+                reject(new Error("Upload paused"));
               }
             }, 100);
-          })
+          }),
         ]);
       } catch (error) {
-        if (error.message === 'Upload paused') {
+        if (error.message === "Upload paused") {
           return { success: false, aborted: true };
         }
         throw error;
@@ -441,7 +383,7 @@ const uploadFile = async (
     if (pausedFiles[file.name]) {
       return { success: false, aborted: true };
     }
-    
+
     // 检查是否被暂停，如果暂停则不完成上传
     if (pausedFiles[file.name]) {
       return { success: false, aborted: true };
@@ -566,16 +508,6 @@ const initFileUpload = async (file, fileHash) => {
     throw new Error("无法初始化上传服务");
   }
 };
-// 分片上传模拟函数
-// const uploadChunk = async (file, start, end) => {
-//   return new Promise((resolve) => {
-//     // 模拟上传延迟（实际应用中应替换为真实上传逻辑）
-//     setTimeout(() => {
-//       resolve({ success: true, bytesUploaded: end - start });
-//     }, Math.random() * 300 + 200);
-//   });
-// };
-
 // 上传文件分片
 const uploadChunk = async (file, uploadId, chunk, index, totalChunks) => {
   // 为每个文件创建新的 AbortController
@@ -786,10 +718,6 @@ const resetUploader = async () => {
     console.error("重置失败:", error);
   }
 };
-// 判断文件是否暂停
-const isPaused = (fileName) => {
-  return pausedFiles[fileName] === true;
-};
 // 切换文件上传状态
 const toggleUpload = async (file) => {
   const status = fileStatus[file.name]?.status;
@@ -797,7 +725,7 @@ const toggleUpload = async (file) => {
   if (status === "uploading") {
     // 暂停操作
     pausedFiles[file.name] = true;
-    
+
     // 中止当前请求
     if (uploadControllers[file.name]) {
       uploadControllers[file.name].abort();
@@ -805,30 +733,29 @@ const toggleUpload = async (file) => {
     }
 
     // 立即更新状态
-    updateFileStatus(file.name, { 
+    updateFileStatus(file.name, {
       status: "paused",
       // 保持已上传分片的进度
       progress: fileStatus[file.name].progress,
-      uploadedChunks: fileStatus[file.name].uploadedChunks || []
+      uploadedChunks: fileStatus[file.name].uploadedChunks || [],
     });
   } else if (status === "paused") {
     // 恢复操作
     pausedFiles[file.name] = false;
     uploadControllers[file.name] = new AbortController();
-    
+
     // 更新状态为上传中
-    updateFileStatus(file.name, { 
+    updateFileStatus(file.name, {
       status: "uploading",
       progress: fileStatus[file.name].progress,
-      uploadedChunks: fileStatus[file.name].uploadedChunks || []
+      uploadedChunks: fileStatus[file.name].uploadedChunks || [],
     });
-    
+
     await resumeUpload(file);
   } else {
     await startUpload(file);
   }
 };
-
 // 恢复上传
 const resumeUpload = async (file) => {
   try {
@@ -897,13 +824,6 @@ const updateFileStatus = (fileName, newStatus) => {
     ...fileStatus[fileName],
     ...newStatus,
   });
-};
-// 更新分片上传状态函数
-const updateChunkStatus = (fileName, uploaded, total) => {
-  if (fileStatus[fileName]) {
-    fileStatus[fileName].uploadedChunks = uploaded;
-    fileStatus[fileName].progress = Math.round((uploaded / total) * 100);
-  }
 };
 </script>
 
