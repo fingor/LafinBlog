@@ -22,6 +22,10 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api/, ""), // 按需配置
         },
+        "/ai": {
+          target: env.VITE_API_BASE_URL, // 正确读取环境变量
+          changeOrigin: true,
+        },
       },
     },
   };

@@ -46,6 +46,11 @@ const routes = [
         name: "bigFileUpload",
         component: () => import("../views/Learning/BigFileUpload.vue"),
       },
+      {
+        path: "chatAI",
+        name: "ChatAI",
+        component: () => import("../views/Learning/chatAI.vue"),
+      },
     ],
   },
 ];

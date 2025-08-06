@@ -56,6 +56,10 @@ const menuItems = ref([
     index: "/learning/BigFileUpload",
     title: "BigFileUpload",
   },
+  {
+    index: "/learning/chatAI",
+    title: "ChatAI",
+  }
 ]);
 </script>
 
