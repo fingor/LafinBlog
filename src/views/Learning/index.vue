@@ -32,47 +32,60 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from "vue";
-import { useRoute } from "vue-router";
+  import { ref } from 'vue'
+  import { useRoute } from 'vue-router'
 
-const route = useRoute();
-const isCollapse = ref(false);
+  const route = useRoute()
+  const isCollapse = ref(false)
 
-// 定义菜单数据
-const menuItems = ref([
-  {
-    index: "/learning/nodejs",
-    title: "Node.js",
-  },
-  {
-    index: "/learning/react-native",
-    title: "React Native",
-  },
-  {
-    index: "/learning/WebWorker",
-    title: "WebWorker",
-  },
-  {
-    index: "/learning/BigFileUpload",
-    title: "BigFileUpload",
-  },
-  {
-    index: "/learning/chatAI",
-    title: "ChatAI",
+  // 定义菜单数据
+  const menuItems = ref([
+    {
+      index: '/learning/nodejs',
+      title: 'Node.js',
+    },
+    {
+      index: '/learning/react-native',
+      title: 'React Native',
+    },
+    {
+      index: '/learning/webworker',
+      title: 'WebWorker',
+    },
+    {
+      index: '/learning/bigFileUpload',
+      title: 'BigFileUpload',
+    },
+    {
+      index: '/learning/chatAI',
+      title: 'ChatAI',
+    },
+    {
+      index: '/learning/typescript',
+      title: 'TypeScript',
+    },
+    {
+      index: '/learning/remoteComponent',
+      title: 'RemoteComponent',
+    },
+  ])
+
+  // 添加 handleSelect 方法
+  const handleSelect = (key: string) => {
+    console.log('Selected menu item:', key)
   }
-]);
 </script>
 
 <style scoped lang="scss">
-.learning {
-  display: flex;
-  .content {
-    padding-left: 20px;
-    flex: 1;
+  .learning {
+    display: flex;
+    .content {
+      padding-left: 20px;
+      flex: 1;
+    }
   }
-}
-.el-menu-vertical-demo:not(.el-menu--collapse) {
-  width: 200px;
-  min-height: 400px;
-}
+  .el-menu-vertical-demo:not(.el-menu--collapse) {
+    width: 200px;
+    min-height: 400px;
+  }
 </style>
