@@ -1,30 +1,46 @@
 <template>
-  <div class="article-management">
+  <div class="course-management">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h2>文章管理系统</h2>
+      <h2>课程管理系统</h2>
       <div class="header-actions">
         <el-button type="primary" @click="signIn">登录</el-button>
         <el-button type="danger" @click="signOut">登出</el-button>
-        <el-button type="primary" @click="showCreateDialog">新增文章</el-button>
+        <el-button type="primary" @click="showCreateDialog">新增课程</el-button>
       </div>
     </div>
 
     <!-- 搜索区域 -->
     <div class="search-card">
       <el-form :model="searchForm" inline>
-        <el-form-item label="文章标题">
+        <el-form-item label="课程名称">
           <el-input
-            v-model="searchForm.title"
-            placeholder="请输入文章标题"
+            v-model="searchForm.name"
+            placeholder="请输入课程名称"
             clearable
             style="width: 200px"
           />
         </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="searchForm.deleted" placeholder="请选择状态" clearable style="width: 120px">
-            <el-option label="正常" value="false" />
-            <el-option label="已删除" value="true" />
+        <el-form-item label="分类">
+          <el-select v-model="searchForm.categoryId" placeholder="请选择分类" clearable style="width: 150px">
+            <el-option
+              v-for="category in categories"
+              :key="category.id"
+              :label="category.name"
+              :value="category.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="推荐">
+          <el-select v-model="searchForm.recommended" placeholder="请选择" clearable style="width: 100px">
+            <el-option label="是" value="true" />
+            <el-option label="否" value="false" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="入门">
+          <el-select v-model="searchForm.introductory" placeholder="请选择" clearable style="width: 100px">
+            <el-option label="是" value="true" />
+            <el-option label="否" value="false" />
           </el-select>
         </el-form-item>
         <el-form-item>
@@ -37,15 +53,51 @@
     <!-- 表格区域 -->
     <div class="table-card">
       <el-table
-        :data="articles"
+        :data="courses"
         v-loading="loading"
         stripe
         border
         style="width: 100%"
       >
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="title" label="文章标题" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="content" label="文章内容" min-width="300" show-overflow-tooltip>
+        <el-table-column prop="name" label="课程名称" min-width="200" show-overflow-tooltip />
+        <el-table-column label="分类" width="120">
+          <template #default="{ row }">
+            {{ row.category?.name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="讲师" width="120">
+          <template #default="{ row }">
+            {{ row.user?.username || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="image" label="封面" width="100">
+          <template #default="{ row }">
+            <el-image
+              v-if="row.image"
+              :src="row.image"
+              style="width: 60px; height: 40px"
+              fit="cover"
+              :preview-src-list="[row.image]"
+            />
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="recommended" label="推荐" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.recommended ? 'success' : 'info'">
+              {{ row.recommended ? '是' : '否' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="introductory" label="入门" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.introductory ? 'warning' : 'info'">
+              {{ row.introductory ? '是' : '否' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="content" label="课程内容" min-width="300" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="content-preview">{{ row.content }}</div>
           </template>
@@ -53,11 +105,6 @@
         <el-table-column prop="createdAt" label="创建时间" width="180">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="updatedAt" label="更新时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.updatedAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
@@ -95,15 +142,35 @@
         :rules="rules"
         label-width="80px"
       >
-        <el-form-item label="文章标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入文章标题" />
+        <el-form-item label="课程名称" prop="name">
+          <el-input v-model="form.name" placeholder="请输入课程名称" />
         </el-form-item>
-        <el-form-item label="文章内容" prop="content">
+        <el-form-item label="分类" prop="categoryId">
+          <el-select v-model="form.categoryId" placeholder="请选择分类" style="width: 100%">
+            <el-option
+              v-for="category in categories"
+              :key="category.id"
+              :label="category.name"
+              :value="category.id"
+            />
+          </el-select>
+        </el-form-item>
+        <!-- 隐藏图片字段，避免图片地址验证错误 -->
+        <!-- <el-form-item label="封面图片" prop="image">
+          <el-input v-model="form.image" placeholder="请输入图片URL" />
+        </el-form-item> -->
+        <el-form-item label="推荐">
+          <el-switch v-model="form.recommended" />
+        </el-form-item>
+        <el-form-item label="入门课程">
+          <el-switch v-model="form.introductory" />
+        </el-form-item>
+        <el-form-item label="课程内容" prop="content">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="6"
-            placeholder="请输入文章内容"
+            placeholder="请输入课程内容"
           />
         </el-form-item>
       </el-form>
@@ -125,7 +192,8 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { $http } from "@/utils/request";
 
 // 响应式数据
-const articles = ref([]);
+const courses = ref([]);
+const categories = ref([]);
 const loading = ref(false);
 const submitLoading = ref(false);
 const dialogVisible = ref(false);
@@ -134,8 +202,10 @@ const formRef = ref();
 
 // 搜索表单
 const searchForm = reactive({
-  title: '',
-  deleted: ''
+  name: '',
+  categoryId: '',
+  recommended: '',
+  introductory: ''
 });
 
 // 分页数据
@@ -148,24 +218,31 @@ const pagination = reactive({
 // 表单数据
 const form = reactive({
   id: null,
-  title: '',
+  categoryId: '',
+  name: '',
+  image: '',
+  recommended: false,
+  introductory: false,
   content: ''
 });
 
 // 表单验证规则
 const rules = {
-  title: [
-    { required: true, message: '请输入文章标题', trigger: 'blur' },
-    { min: 1, max: 100, message: '标题长度在 1 到 100 个字符', trigger: 'blur' }
+  name: [
+    { required: true, message: '请输入课程名称', trigger: 'blur' },
+    { min: 1, max: 100, message: '课程名称长度在 1 到 100 个字符', trigger: 'blur' }
+  ],
+  categoryId: [
+    { required: true, message: '请选择分类', trigger: 'change' }
   ],
   content: [
-    { required: true, message: '请输入文章内容', trigger: 'blur' },
+    { required: true, message: '请输入课程内容', trigger: 'blur' },
     { min: 1, max: 5000, message: '内容长度在 1 到 5000 个字符', trigger: 'blur' }
   ]
 };
 
 // 计算属性
-const dialogTitle = computed(() => isEdit.value ? '编辑文章' : '新增文章');
+const dialogTitle = computed(() => isEdit.value ? '编辑课程' : '新增课程');
 
 // 登录方法
 const signIn = async () => {
@@ -181,8 +258,9 @@ const signIn = async () => {
     if (res.status) {
       localStorage.setItem("token", res.data.token);
       ElMessage.success('登录成功');
-      // 登录成功后直接获取文章列表
-      getArticles();
+      // 登录成功后获取数据
+      getCategories();
+      getCourses();
     } else {
       ElMessage.error(res.message || '登录失败');
     }
@@ -196,13 +274,32 @@ const signIn = async () => {
 const signOut = () => {
   localStorage.removeItem("token");
   ElMessage.success("登出成功");
-  // 清空文章列表
-  articles.value = [];
+  // 清空数据
+  courses.value = [];
+  categories.value = [];
   pagination.total = 0;
 };
 
-// 获取文章列表
-const getArticles = async () => {
+// 获取分类列表
+const getCategories = async () => {
+  try {
+    const res = await $http('/admin/categories', {
+      method: "GET"
+    });
+
+    if (res.status) {
+      categories.value = res.data.categories;
+    } else {
+      ElMessage.error(res.message || '获取分类列表失败');
+    }
+  } catch (error) {
+    console.error('获取分类列表错误:', error);
+    ElMessage.error('获取分类列表失败');
+  }
+};
+
+// 获取课程列表
+const getCourses = async () => {
   loading.value = true;
   try {
     const params = new URLSearchParams({
@@ -210,27 +307,32 @@ const getArticles = async () => {
       pageSize: pagination.pageSize.toString()
     });
 
-    if (searchForm.title) {
-      params.append('title', searchForm.title);
+    if (searchForm.name) {
+      params.append('name', searchForm.name);
     }
-    // 暂时注释掉软删除参数，因为数据库中没有deletedAt字段
-    if (searchForm.deleted) {
-      params.append('deleted', searchForm.deleted);
+    if (searchForm.categoryId) {
+      params.append('categoryId', searchForm.categoryId);
+    }
+    if (searchForm.recommended) {
+      params.append('recommended', searchForm.recommended);
+    }
+    if (searchForm.introductory) {
+      params.append('introductory', searchForm.introductory);
     }
 
-    const res = await $http(`/admin/articles?${params.toString()}`, {
+    const res = await $http(`/admin/courses?${params.toString()}`, {
       method: "GET"
     });
 
     if (res.status) {
-      articles.value = res.data.articles;
+      courses.value = res.data.courses;
       pagination.total = res.data.pagination.total;
     } else {
-      ElMessage.error(res.message || '获取文章列表失败');
+      ElMessage.error(res.message || '获取课程列表失败');
     }
   } catch (error) {
-    console.error('获取文章列表错误:', error);
-    ElMessage.error('获取文章列表失败');
+    console.error('获取课程列表错误:', error);
+    ElMessage.error('获取课程列表失败');
   } finally {
     loading.value = false;
   }
@@ -239,28 +341,30 @@ const getArticles = async () => {
 // 搜索
 const handleSearch = () => {
   pagination.currentPage = 1;
-  getArticles();
+  getCourses();
 };
 
 // 重置搜索
 const handleReset = () => {
-  searchForm.title = '';
-  // searchForm.deleted = ''; // 暂时注释掉，因为数据库中没有deletedAt字段
+  searchForm.name = '';
+  searchForm.categoryId = '';
+  searchForm.recommended = '';
+  searchForm.introductory = '';
   pagination.currentPage = 1;
-  getArticles();
+  getCourses();
 };
 
 // 分页大小改变
 const handleSizeChange = (size) => {
   pagination.pageSize = size;
   pagination.currentPage = 1;
-  getArticles();
+  getCourses();
 };
 
 // 当前页改变
 const handleCurrentChange = (page) => {
   pagination.currentPage = page;
-  getArticles();
+  getCourses();
 };
 
 // 显示新增对话框
@@ -274,16 +378,20 @@ const showCreateDialog = () => {
 const handleEdit = (row) => {
   isEdit.value = true;
   form.id = row.id;
-  form.title = row.title;
+  form.categoryId = row.categoryId;
+  form.name = row.name;
+  form.image = ''; // 编辑时也设置为空，避免图片地址验证错误
+  form.recommended = row.recommended;
+  form.introductory = row.introductory;
   form.content = row.content;
   dialogVisible.value = true;
 };
 
-// 删除文章
+// 删除课程
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除文章"${row.title}"吗？`,
+      `确定要删除课程"${row.name}"吗？`,
       '确认删除',
       {
         confirmButtonText: '确定',
@@ -292,20 +400,19 @@ const handleDelete = async (row) => {
       }
     );
 
-    const res = await $http('/admin/articles/delete', {
-      method: 'POST',
-      body: JSON.stringify({ id: row.id })
+    const res = await $http(`/admin/courses/${row.id}`, {
+      method: 'DELETE'
     });
 
     if (res.status) {
       ElMessage.success('删除成功');
-      getArticles();
+      getCourses();
     } else {
       ElMessage.error(res.message || '删除失败');
     }
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除文章错误:', error);
+      console.error('删除课程错误:', error);
       ElMessage.error('删除失败');
     }
   }
@@ -319,13 +426,17 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     submitLoading.value = true;
 
-    const url = isEdit.value ? `/admin/articles/${form.id}` : '/admin/articles';
+    const url = isEdit.value ? `/admin/courses/${form.id}` : '/admin/courses';
     const method = isEdit.value ? 'PUT' : 'POST';
 
     const res = await $http(url, {
       method,
       body: JSON.stringify({
-        title: form.title,
+        categoryId: form.categoryId,
+        name: form.name,
+        image: null, // 传递 null 值，避免 Sequelize URL 验证错误
+        recommended: form.recommended,
+        introductory: form.introductory,
         content: form.content
       })
     });
@@ -333,7 +444,7 @@ const handleSubmit = async () => {
     if (res.status) {
       ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
       dialogVisible.value = false;
-      getArticles();
+      getCourses();
     } else {
       ElMessage.error(res.message || (isEdit.value ? '更新失败' : '创建失败'));
     }
@@ -348,7 +459,11 @@ const handleSubmit = async () => {
 // 重置表单
 const resetForm = () => {
   form.id = null;
-  form.title = '';
+  form.categoryId = '';
+  form.name = '';
+  form.image = ''; // 确保图片字段为空
+  form.recommended = false;
+  form.introductory = false;
   form.content = '';
   if (formRef.value) {
     formRef.value.resetFields();
@@ -363,12 +478,13 @@ const formatDate = (dateString) => {
 
 // 页面加载时获取数据
 onMounted(() => {
-  getArticles();
+  getCategories();
+  getCourses();
 });
 </script>
 
 <style scoped>
-.article-management {
+.course-management {
   padding: 20px;
 }
 

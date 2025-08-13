@@ -6,7 +6,7 @@
       alt="Element logo"
       @click="redirectHome"
     />
-    <span class="title" @click="redirectHome">Lafin的个人学习博客</span>
+    <span class="title" @click="redirectHome">Lafin的博客</span>
   </div>
   <div class="navList">
     <span
@@ -53,7 +53,7 @@ const lists = [
   },
   {
     index: "/learning",
-    title: "学习",
+    title: "应用",
   },
 ];
 </script>

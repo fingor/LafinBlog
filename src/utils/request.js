@@ -1,4 +1,3 @@
-import { ElMessage } from "element-plus";
 // const baseUrl = "https://api.fingor.cn"; // 可选：统一管理基础URL
 // const baseUrl = import.meta.env.VITE_API_BASE_URL;
 // const baseUrl = ""; // 开发环境使用空字符串，让请求走代理
@@ -22,12 +21,7 @@ export const $http = async (url, options = {}) => {
       headers,
     });
     const res = await response.json();
-    // 处理HTTP错误（如401/404等）
-    if (res.status === true) {
-      ElMessage.success(res.message);
-    } else {
-      ElMessage.error(res.message);
-    }
+    // 移除自动提示，让业务层自己处理
     return res;
   } catch (error) {
     console.error("请求失败:", error);
