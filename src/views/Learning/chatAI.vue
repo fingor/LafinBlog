@@ -1,5 +1,10 @@
 <template>
     <div class="ai-chat-container">
+      <!-- 示例 -->
+       <div class="example-container">
+        <!-- 接入了天气地图API，可以查询天气 -->
+         <p style="color: #999;font-size: 14px;">模拟了天气的mcp功能可以查询天气&nbsp;示例:今天珠海天气如何</p>
+       </div>
       <!-- 消息展示区 -->
       <div ref="chatWindow" class="chat-window">
         <div

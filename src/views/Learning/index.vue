@@ -44,10 +44,10 @@
       index: '/learning/nodejs',
       title: 'Node.js',
     },
-    {
-      index: '/learning/react-native',
-      title: 'React Native',
-    },
+    // {
+    //   index: '/learning/react-native',
+    //   title: 'React Native',
+    // },
     {
       index: '/learning/webworker',
       title: 'WebWorker',
@@ -60,14 +60,14 @@
       index: '/learning/chatAI',
       title: 'ChatAI',
     },
-    {
-      index: '/learning/typescript',
-      title: 'TypeScript',
-    },
-    {
-      index: '/learning/remoteComponent',
-      title: 'RemoteComponent',
-    },
+    // {
+    //   index: '/learning/typescript',
+    //   title: 'TypeScript',
+    // },
+    // {
+    //   index: '/learning/remoteComponent',
+    //   title: 'RemoteComponent',
+    // },
   ])
 
   // 添加 handleSelect 方法
