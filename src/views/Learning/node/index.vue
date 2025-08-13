@@ -5,7 +5,7 @@
       label="文章管理"
       name="articles"
     >
-      <BackendApi />
+      <ArticlesManagement />
     </el-tab-pane>
     <el-tab-pane
       label="分类管理"
@@ -30,7 +30,7 @@
 
 <script setup>
   import { ref } from 'vue'
-  import BackendApi from './components/backendApi.vue'
+  import ArticlesManagement from './components/articlesManagement.vue'
   import CategoryManagement from './components/categoryManagement.vue'
   import CourseManagement from './components/courseManagement.vue'
   import ChapterManagement from './components/chapterManagement.vue'

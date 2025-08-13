@@ -2,7 +2,6 @@
   <div class="article-management">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h2>文章管理系统</h2>
       <div class="header-actions">
         <el-button type="primary" @click="signIn">登录</el-button>
         <el-button type="danger" @click="signOut">登出</el-button>
