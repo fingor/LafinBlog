@@ -3,8 +3,6 @@
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="header-actions">
-        <el-button type="primary" @click="signIn">登录</el-button>
-        <el-button type="danger" @click="signOut">登出</el-button>
         <el-button type="primary" @click="showCreateDialog">新增文章</el-button>
       </div>
     </div>
@@ -166,39 +164,7 @@ const rules = {
 // 计算属性
 const dialogTitle = computed(() => isEdit.value ? '编辑文章' : '新增文章');
 
-// 登录方法
-const signIn = async () => {
-  try {
-    const res = await $http('/admin/auth/sign_in', {
-      method: 'POST',
-      body: JSON.stringify({
-        login: 'admin@clwy.cn',
-        password: 'aaabbbcccd'
-      })
-    });
 
-    if (res.status) {
-      localStorage.setItem("token", res.data.token);
-      ElMessage.success('登录成功');
-      // 登录成功后直接获取文章列表
-      getArticles();
-    } else {
-      ElMessage.error(res.message || '登录失败');
-    }
-  } catch (error) {
-    console.error('登录错误:', error);
-    ElMessage.error('登录失败');
-  }
-};
-
-// 登出方法
-const signOut = () => {
-  localStorage.removeItem("token");
-  ElMessage.success("登出成功");
-  // 清空文章列表
-  articles.value = [];
-  pagination.total = 0;
-};
 
 // 获取文章列表
 const getArticles = async () => {
@@ -224,12 +190,9 @@ const getArticles = async () => {
     if (res.status) {
       articles.value = res.data.articles;
       pagination.total = res.data.pagination.total;
-    } else {
-      ElMessage.error(res.message || '获取文章列表失败');
     }
   } catch (error) {
     console.error('获取文章列表错误:', error);
-    ElMessage.error('获取文章列表失败');
   } finally {
     loading.value = false;
   }
@@ -299,8 +262,6 @@ const handleDelete = async (row) => {
     if (res.status) {
       ElMessage.success('删除成功');
       getArticles();
-    } else {
-      ElMessage.error(res.message || '删除失败');
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -333,8 +294,6 @@ const handleSubmit = async () => {
       ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
       dialogVisible.value = false;
       getArticles();
-    } else {
-      ElMessage.error(res.message || (isEdit.value ? '更新失败' : '创建失败'));
     }
   } catch (error) {
     console.error('提交表单错误:', error);

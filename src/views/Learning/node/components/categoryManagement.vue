@@ -3,8 +3,6 @@
     <!-- 页面标题 -->
     <div class="page-header">
       <div class="header-actions">
-        <el-button type="primary" @click="signIn">登录</el-button>
-        <el-button type="danger" @click="signOut">登出</el-button>
         <el-button type="primary" @click="showCreateDialog">新增分类</el-button>
       </div>
     </div>
@@ -129,38 +127,7 @@ const rules = {
 // 计算属性
 const dialogTitle = computed(() => isEdit.value ? '编辑分类' : '新增分类');
 
-// 登录方法
-const signIn = async () => {
-  try {
-    const res = await $http('/admin/auth/sign_in', {
-      method: 'POST',
-      body: JSON.stringify({
-        login: 'admin@clwy.cn',
-        password: 'aaabbbcccd'
-      })
-    });
 
-    if (res.status) {
-      localStorage.setItem("token", res.data.token);
-      ElMessage.success('登录成功');
-      // 登录成功后获取数据
-      getCategories();
-    } else {
-      ElMessage.error(res.message || '登录失败');
-    }
-  } catch (error) {
-    console.error('登录错误:', error);
-    ElMessage.error('登录失败');
-  }
-};
-
-// 登出方法
-const signOut = () => {
-  localStorage.removeItem("token");
-  ElMessage.success("登出成功");
-  // 清空数据
-  categories.value = [];
-};
 
 // 获取分类列表
 const getCategories = async () => {
@@ -178,8 +145,6 @@ const getCategories = async () => {
 
     if (res.status) {
       categories.value = res.data.categories;
-    } else {
-      ElMessage.error(res.message || '获取分类列表失败');
     }
   } catch (error) {
     console.error('获取分类列表错误:', error);
@@ -236,8 +201,6 @@ const handleDelete = async (row) => {
     if (res.status) {
       ElMessage.success('删除成功');
       getCategories();
-    } else {
-      ElMessage.error(res.message || '删除失败');
     }
   } catch (error) {
     if (error !== 'cancel') {
@@ -270,8 +233,6 @@ const handleSubmit = async () => {
       ElMessage.success(isEdit.value ? '更新成功' : '创建成功');
       dialogVisible.value = false;
       getCategories();
-    } else {
-      ElMessage.error(res.message || (isEdit.value ? '更新失败' : '创建失败'));
     }
   } catch (error) {
     console.error('提交表单错误:', error);

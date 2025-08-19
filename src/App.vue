@@ -1,17 +1,9 @@
 <template>
-  <div class="app-container">
-    <NavBar />
-    <router-view style="flex: 1"></router-view>
-  </div>
+  <router-view style="flex: 1"></router-view>
 </template>
+
 <script setup>
-import NavBar from "./components/NavBar.vue";
 </script>
+
 <style scoped lang="scss">
-.app-container {
-  display: flex;
-  flex-flow: column;
-  height: 100%;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-}
 </style>

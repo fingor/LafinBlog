@@ -12,58 +12,75 @@ const router = createRouter({
       path: '/home',
       name: 'Home',
       component: Home,
-    },
-    {
-      path: '/notes',
-      name: 'Notes',
-      component: () => import('../views/Notes.vue'), // 笔记
-    },
-    {
-      path: '/learning',
-      name: 'Learning',
-      component: () => import('../views/Learning/index.vue'), // 学习
       children: [
         {
           path: '',
-          name: 'LearningDefault',
-          redirect: '/learning/nodejs',
+          name: 'HomeDefault',
+          component: () => import('../views/HomeContent.vue'), // 首页内容
         },
         {
-          path: 'nodejs',
-          name: 'NodeJS',
-          component: () => import('../views/Learning/node/index.vue'),
+          path: '/notes',
+          name: 'Notes',
+          component: () => import('../views/Notes.vue'), // 笔记
         },
         {
-          path: 'react-native',
-          name: 'ReactNative',
-          component: () => import('../views/Learning/ReactNative.vue'),
-        },
-        {
-          path: 'webworker',
-          name: 'Webworker',
-          component: () => import('../views/Learning/WebWorker.vue'),
-        },
-        {
-          path: 'bigFileUpload',
-          name: 'bigFileUpload',
-          component: () => import('../views/Learning/BigFileUpload.vue'),
-        },
-        {
-          path: 'chatAI',
-          name: 'ChatAI',
-          component: () => import('../views/Learning/chatAI.vue'),
-        },
-        {
-          path: 'typescript',
-          name: 'TypeScript',
-          component: () => import('../views/ts/TypeScriptPractice.vue'),
-        },
-        {
-          path: 'remoteComponent',
-          name: 'RemoteComponent',
-          component: () => import('../views/Learning/RemoteComponent.vue'),
+          path: '/learning',
+          name: 'Learning',
+          component: () => import('../views/Learning/index.vue'), // 学习
+          children: [
+            {
+              path: '',
+              name: 'LearningDefault',
+              redirect: '/learning/nodejs',
+            },
+            {
+              path: 'nodejs',
+              name: 'NodeJS',
+              component: () => import('../views/Learning/node/index.vue'),
+            },
+            {
+              path: 'react-native',
+              name: 'ReactNative',
+              component: () => import('../views/Learning/ReactNative.vue'),
+            },
+            {
+              path: 'webworker',
+              name: 'Webworker',
+              component: () => import('../views/Learning/WebWorker.vue'),
+            },
+            {
+              path: 'bigFileUpload',
+              name: 'bigFileUpload',
+              component: () => import('../views/Learning/BigFileUpload.vue'),
+            },
+            {
+              path: 'chatAI',
+              name: 'ChatAI',
+              component: () => import('../views/Learning/chatAI.vue'),
+            },
+            {
+              path: 'typescript',
+              name: 'TypeScript',
+              component: () => import('../views/ts/TypeScriptPractice.vue'),
+            },
+            {
+              path: 'remoteComponent',
+              name: 'RemoteComponent',
+              component: () => import('../views/Learning/RemoteComponent.vue'),
+            },
+          ],
         },
       ],
+    },
+    {
+      path: '/register',
+      name: 'Register',
+      component: () => import('../views/Register.vue'),
+    },
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('../views/Login.vue'),
     },
   ],
 })
