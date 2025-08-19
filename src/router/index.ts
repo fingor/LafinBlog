@@ -24,11 +24,6 @@ const router = createRouter({
           component: () => import('../views/Notes.vue'), // 笔记
         },
         {
-          path: '/notes-demo',
-          name: 'NotesDemo',
-          component: () => import('../views/Notes/demo.vue'), // 笔记演示
-        },
-        {
           path: '/learning',
           name: 'Learning',
           component: () => import('../views/Learning/index.vue'), // 学习
