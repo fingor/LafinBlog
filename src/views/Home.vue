@@ -257,7 +257,7 @@
   .main-content {
     flex: 1;
     overflow: auto;
-    padding: 20px;
+    // padding: 20px;
     background-color: #f8f9fa;
   }
 </style>
