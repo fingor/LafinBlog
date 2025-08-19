@@ -6,98 +6,72 @@
         <p>欢迎加入Lafin的博客</p>
       </div>
 
-      <form @submit.prevent="handleRegister" class="register-form">
-        <div class="form-group">
-          <label for="username">用户名</label>
-          <input
-            id="username"
-            name="username"
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-width="100px"
+        class="register-form"
+        @submit.prevent="handleRegister"
+      >
+        <el-form-item label="用户名" prop="username">
+          <el-input
             v-model="formData.username"
-            type="text"
             placeholder="请输入用户名"
-            required
-            :class="{ error: errors.username }"
+            clearable
+            size="large"
           />
-          <span v-if="errors.username" class="error-message">{{
-            errors.username
-          }}</span>
-        </div>
-        <div class="form-group">
-          <label for="nickname">昵称</label>
-          <input
-            id="nickname"
-            name="nickname"
-            v-model="formData.nickname"
-            type="text"
-            placeholder="请输入用户名"
-            required
-            :class="{ error: errors.nickname }"
-          />
-          <span v-if="errors.nickname" class="error-message">{{
-            errors.nickname
-          }}</span>
-        </div>
-        <div class="form-group">
-          <label for="email">邮箱</label>
-          <input
-            id="email"
-            name="email"
-            v-model="formData.email"
-            type="email"
-            placeholder="请输入邮箱"
-            required
-            :class="{ error: errors.email }"
-          />
-          <span v-if="errors.email" class="error-message">{{
-            errors.email
-          }}</span>
-        </div>
+        </el-form-item>
 
-        <div class="form-group">
-          <label for="password">密码</label>
-          <input
-            id="password"
-            name="password"
+        <el-form-item label="昵称" prop="nickname">
+          <el-input
+            v-model="formData.nickname"
+            placeholder="请输入昵称"
+            clearable
+            size="large"
+          />
+        </el-form-item>
+
+        <el-form-item label="邮箱" prop="email">
+          <el-input
+            v-model="formData.email"
+            placeholder="请输入邮箱"
+            clearable
+            size="large"
+          />
+        </el-form-item>
+
+        <el-form-item label="密码" prop="password">
+          <el-input
             v-model="formData.password"
             type="password"
             placeholder="请输入密码"
-            required
-            :class="{ error: errors.password }"
+            show-password
+            clearable
+            size="large"
           />
-          <span v-if="errors.password" class="error-message">{{
-            errors.password
-          }}</span>
-        </div>
+        </el-form-item>
 
-        <div class="form-group">
-          <label for="confirmPassword">确认密码</label>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
+        <el-form-item label="确认密码" prop="confirmPassword">
+          <el-input
             v-model="formData.confirmPassword"
             type="password"
             placeholder="请再次输入密码"
-            required
-            :class="{ error: errors.confirmPassword }"
+            show-password
+            clearable
+            size="large"
           />
-          <span v-if="errors.confirmPassword" class="error-message">{{
-            errors.confirmPassword
-          }}</span>
-        </div>
+        </el-form-item>
 
         <!-- 验证码区域 -->
-        <div class="form-group">
-          <label for="captcha">验证码</label>
+        <el-form-item label="验证码" prop="captchaText">
           <div class="captcha-container">
-            <input
-              id="captcha"
-              name="captcha"
+            <el-input
               v-model="formData.captchaText"
-              type="text"
               placeholder="请输入验证码"
-              required
-              :class="{ error: errors.captchaText }"
               maxlength="4"
+              clearable
+              size="large"
             />
             <div class="captcha-display" @click="refreshCaptcha">
               <div
@@ -111,33 +85,31 @@
               </div>
             </div>
           </div>
-          <span v-if="errors.captchaText" class="error-message">{{
-            errors.captchaText
-          }}</span>
-        </div>
+        </el-form-item>
 
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input
-              v-model="formData.agreeTerms"
-              type="checkbox"
-              name="agreeTerms"
-            />
-            <span class="checkmark"></span>
+        <el-form-item prop="agreeTerms">
+          <el-checkbox v-model="formData.agreeTerms">
             我已阅读并同意
-            <a href="#" @click.prevent="showTerms">用户协议</a> 和
-            <a href="#" @click.prevent="showPrivacy">隐私政策</a>
-          </label>
-        </div>
+            <el-link type="primary" @click="showTerms">用户协议</el-link> 和
+            <el-link type="primary" @click="showPrivacy">隐私政策</el-link>
+          </el-checkbox>
+        </el-form-item>
 
-        <button type="submit" class="register-btn" :disabled="loading">
-          <span v-if="loading" class="loading-spinner"></span>
-          {{ loading ? '注册中...' : '立即注册' }}
-        </button>
-      </form>
+        <el-form-item>
+          <el-button
+            type="primary"
+            :loading="loading"
+            @click="handleRegister"
+            size="large"
+            class="register-button"
+          >
+            {{ loading ? '注册中...' : '立即注册' }}
+          </el-button>
+        </el-form-item>
+      </el-form>
 
       <div class="login-link">
-        已有账号？ <a @click="goToLogin">立即登录</a>
+        已有账号？ <el-link type="primary" @click="goToLogin">立即登录</el-link>
       </div>
     </div>
   </div>
@@ -156,6 +128,7 @@
   } from '@/utils/confirm.js'
 
   const router = useRouter()
+  const formRef = ref()
   const loading = ref(false)
   const captchaLoading = ref(false)
   const captchaData = ref('')
@@ -171,14 +144,54 @@
     agreeTerms: false,
   })
 
-  const errors = reactive({
-    username: '',
-    nickname: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    captchaText: '',
-  })
+  // 表单验证规则
+  const rules = {
+    username: [
+      { required: true, message: '请输入用户名', trigger: 'blur' },
+      { min: 3, message: '用户名至少3个字符', trigger: 'blur' }
+    ],
+    nickname: [
+      { required: true, message: '请输入昵称', trigger: 'blur' },
+      { min: 2, message: '昵称至少2个字符', trigger: 'blur' }
+    ],
+    email: [
+      { required: true, message: '请输入邮箱', trigger: 'blur' },
+      { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    ],
+    password: [
+      { required: true, message: '请输入密码', trigger: 'blur' },
+      { min: 6, message: '密码至少6个字符', trigger: 'blur' }
+    ],
+    confirmPassword: [
+      { required: true, message: '请确认密码', trigger: 'blur' },
+      {
+        validator: (rule, value, callback) => {
+          if (value !== formData.password) {
+            callback(new Error('两次输入的密码不一致'))
+          } else {
+            callback()
+          }
+        },
+        trigger: 'blur'
+      }
+    ],
+    captchaText: [
+      { required: true, message: '请输入验证码', trigger: 'blur' },
+      { len: 4, message: '验证码为4位字符', trigger: 'blur' }
+    ],
+    agreeTerms: [
+      {
+        validator: (rule, value, callback) => {
+          if (!value) {
+            callback(new Error('请先同意用户协议和隐私政策'))
+          } else {
+            callback()
+          }
+        },
+        trigger: 'change'
+      }
+    ]
+  }
 
   // 获取验证码
   const getCaptcha = async () => {
@@ -208,82 +221,13 @@
     }
   }
 
-  // 验证表单
-  const validateForm = () => {
-    let isValid = true
-
-    // 重置错误信息
-    Object.keys(errors).forEach(key => {
-      errors[key] = ''
-    })
-
-    // 验证用户名
-    if (!formData.username.trim()) {
-      errors.username = '用户名不能为空'
-      isValid = false
-    } else if (formData.username.length < 3) {
-      errors.username = '用户名至少3个字符'
-      isValid = false
-    }
-
-    // 验证昵称
-    if (!formData.nickname.trim()) {
-      errors.nickname = '昵称不能为空'
-      isValid = false
-    } else if (formData.nickname.length < 2) {
-      errors.nickname = '昵称至少2个字符'
-      isValid = false
-    }
-
-    // 验证邮箱
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!formData.email.trim()) {
-      errors.email = '邮箱不能为空'
-      isValid = false
-    } else if (!emailRegex.test(formData.email)) {
-      errors.email = '请输入有效的邮箱地址'
-      isValid = false
-    }
-
-    // 验证密码
-    if (!formData.password) {
-      errors.password = '密码不能为空'
-      isValid = false
-    } else if (formData.password.length < 6) {
-      errors.password = '密码至少6个字符'
-      isValid = false
-    }
-
-    // 验证确认密码
-    if (!formData.confirmPassword) {
-      errors.confirmPassword = '请确认密码'
-      isValid = false
-    } else if (formData.password !== formData.confirmPassword) {
-      errors.confirmPassword = '两次输入的密码不一致'
-      isValid = false
-    }
-
-    // 验证验证码
-    if (!formData.captchaText.trim()) {
-      errors.captchaText = '请输入验证码'
-      isValid = false
-    } else if (formData.captchaText.length !== 4) {
-      errors.captchaText = '验证码为4位字符'
-      isValid = false
-    }
-
-    // 验证用户协议
-    if (!formData.agreeTerms) {
-      $warning('请先同意用户协议和隐私政策')
-      isValid = false
-    }
-
-    return isValid
-  }
-
   // 处理注册
   const handleRegister = async () => {
-    if (!validateForm()) {
+    if (!formRef.value) return
+
+    try {
+      await formRef.value.validate()
+    } catch (error) {
       return
     }
 
@@ -309,7 +253,6 @@
 
       if (response.status) {
         $success('注册成功！')
-        // 保存用户信息到本地存储
         localStorage.setItem('token', response.data.token || '')
         router.push('/home')
       } else {
@@ -321,7 +264,6 @@
       }
     } catch (error) {
       console.error('注册错误:', error)
-      // 网络错误或其他异常情况，request.js 已经处理了，这里不需要重复显示
     } finally {
       loading.value = false
     }
@@ -347,7 +289,7 @@
       })
       .catch(() => {
         formData.agreeTerms = false
-        $info('您需要同意用户协议才能继续注册')
+        $warning('您需要同意用户协议才能继续注册')
       })
   }
 
@@ -367,7 +309,7 @@
       })
       .catch(() => {
         formData.agreeTerms = false
-        $info('您需要同意隐私政策才能继续注册')
+        $warning('您需要同意隐私政策才能继续注册')
       })
   }
 
@@ -389,232 +331,227 @@
 
   .register-card {
     background: white;
-    border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+    padding: 50px;
     width: 100%;
-    max-width: 400px;
+    max-width: 520px;
+    backdrop-filter: blur(10px);
   }
 
   .register-header {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 40px;
 
     h2 {
-      color: #333;
-      margin: 0 0 8px 0;
-      font-size: 28px;
-      font-weight: 600;
+      color: #2c3e50;
+      margin: 0 0 12px 0;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
     }
 
     p {
-      color: #666;
+      color: #7f8c8d;
       margin: 0;
-      font-size: 14px;
+      font-size: 16px;
+      font-weight: 400;
     }
   }
 
   .register-form {
-    .form-group {
-      margin-bottom: 20px;
+    :deep(.el-form-item) {
+      margin-bottom: 24px;
 
-      label {
-        display: block;
-        margin-bottom: 8px;
-        color: #333;
-        font-weight: 500;
-        font-size: 14px;
+      .el-form-item__label {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 15px;
+        line-height: 1.4;
+        white-space: nowrap;
+        padding-right: 12px;
+        display: flex;
+        align-items: center;
+        height: 50px;
       }
 
-      input[type='text'],
-      input[type='email'],
-      input[type='password'] {
-        width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e1e5e9;
-        border-radius: 8px;
-        font-size: 14px;
-        transition: border-color 0.3s ease;
-        box-sizing: border-box;
+      .el-input {
+        .el-input__wrapper {
+          border-radius: 12px;
+          border: 2px solid #e8f0fe;
+          background: #fafbfc;
+          transition: all 0.3s ease;
+          box-shadow: none;
+          padding: 0 16px;
+          height: 50px;
 
-        &:focus {
-          outline: none;
+          &:hover {
+            border-color: #cbd5e0;
+            background: #ffffff;
+          }
+
+          &.is-focus {
+            border-color: #667eea;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          }
+        }
+
+        .el-input__inner {
+          font-size: 15px;
+          color: #2c3e50;
+          height: 48px;
+
+          &::placeholder {
+            color: #a0aec0;
+            font-weight: 400;
+          }
+        }
+
+        .el-input__suffix {
+          .el-input__clear,
+          .el-input__password {
+            color: #a0aec0;
+            font-size: 16px;
+            transition: color 0.3s ease;
+
+            &:hover {
+              color: #667eea;
+            }
+          }
+        }
+      }
+
+      .el-checkbox {
+        .el-checkbox__label {
+          color: #5a6c7d;
+          font-size: 14px;
+          font-weight: 500;
+          line-height: 1.5;
+
+          .el-link {
+            font-weight: 600;
+            margin: 0 2px;
+          }
+        }
+
+        .el-checkbox__input.is-checked .el-checkbox__inner {
+          background-color: #667eea;
           border-color: #667eea;
         }
-
-        &.error {
-          border-color: #ff4757;
-        }
-
-        &::placeholder {
-          color: #999;
-        }
-      }
-
-      .error-message {
-        color: #ff4757;
-        font-size: 12px;
-        margin-top: 4px;
-        display: block;
       }
     }
-  }
 
-  // 验证码样式
-  .captcha-container {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
-
-    input[type='text'] {
-      flex: 1;
-    }
-
-    .captcha-display {
-      width: 100px;
-      height: 44px;
-      border: 2px solid #e1e5e9;
-      border-radius: 8px;
+    // 验证码样式
+    .captcha-container {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      background: #f8f9fa;
+      gap: 12px;
+      align-items: flex-start;
 
-      &:hover {
-        border-color: #667eea;
-        background: #f0f2ff;
+      .el-input {
+        flex: 1;
       }
 
-      .captcha-svg {
-        width: 100%;
-        height: 100%;
+      .captcha-display {
+        width: 120px;
+        height: 50px;
+        border: 2px solid #e8f0fe;
+        border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        background: #fafbfc;
 
-        svg {
-          max-width: 100%;
-          max-height: 100%;
+        &:hover {
+          border-color: #667eea;
+          background: #f0f2ff;
+          transform: translateY(-1px);
+        }
+
+        .captcha-svg {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          svg {
+            max-width: 100%;
+            max-height: 100%;
+          }
+        }
+
+        .captcha-loading {
+          font-size: 12px;
+          color: #7f8c8d;
+          text-align: center;
+          padding: 0 8px;
+          line-height: 1.2;
+          font-weight: 500;
         }
       }
-
-      .captcha-loading {
-        font-size: 12px;
-        color: #666;
-        text-align: center;
-        padding: 0 8px;
-        line-height: 1.2;
-      }
-    }
-  }
-
-  .checkbox-label {
-    display: flex !important;
-    align-items: center;
-    cursor: pointer;
-    font-size: 14px;
-    color: #666;
-
-    input[type='checkbox'] {
-      display: none;
     }
 
-    .checkmark {
-      width: 18px;
-      height: 18px;
-      border: 2px solid #e1e5e9;
-      border-radius: 4px;
-      margin-right: 8px;
-      position: relative;
+    .register-button {
+      width: 100%;
+      height: 52px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
       transition: all 0.3s ease;
-    }
+      margin-top: 8px;
 
-    input[type='checkbox']:checked + .checkmark {
-      background-color: #667eea;
-      border-color: #667eea;
-
-      &::after {
-        content: '✓';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: white;
-        font-size: 12px;
-        font-weight: bold;
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
       }
-    }
 
-    a {
-      color: #667eea;
-      text-decoration: none;
-
-      &:hover {
-        text-decoration: underline;
+      &:active {
+        transform: translateY(0);
       }
-    }
-  }
-
-  .register-btn {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-    }
-
-    &:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-  }
-
-  .loading-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid transparent;
-    border-top: 2px solid white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
     }
   }
 
   .login-link {
     text-align: center;
-    margin-top: 20px;
-    font-size: 14px;
-    color: #666;
+    margin-top: 30px;
+    font-size: 15px;
+    color: #5a6c7d;
 
-    a {
-      color: #667eea;
-      cursor: pointer;
-      text-decoration: none;
+    .el-link {
+      font-weight: 600;
+      margin-left: 4px;
+    }
+  }
 
-      &:hover {
-        text-decoration: underline;
+  // 响应式设计
+  @media (max-width: 480px) {
+    .register-card {
+      padding: 30px 25px;
+      margin: 10px;
+    }
+
+    .register-form {
+      :deep(.el-form-item__label) {
+        font-size: 14px;
+      }
+
+      .el-input .el-input__wrapper {
+        height: 46px;
+      }
+
+      .el-input .el-input__inner {
+        height: 44px;
+        font-size: 14px;
+      }
+
+      .captcha-container .captcha-display {
+        width: 100px;
+        height: 46px;
       }
     }
   }

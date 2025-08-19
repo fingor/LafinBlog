@@ -6,62 +6,60 @@
         <p>欢迎回到Lafin的博客</p>
       </div>
 
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="form-group">
-          <label for="login">用户名/邮箱</label>
-          <input
-            id="login"
-            name="login"
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-width="100px"
+        class="login-form"
+        @submit.prevent="handleLogin"
+      >
+        <el-form-item label="用户名/邮箱" prop="login">
+          <el-input
             v-model="formData.login"
-            type="text"
             placeholder="请输入用户名或邮箱"
-            required
-            :class="{ error: errors.login }"
+            clearable
+            size="large"
           />
-          <span v-if="errors.login" class="error-message">{{
-            errors.login
-          }}</span>
-        </div>
+        </el-form-item>
 
-        <div class="form-group">
-          <label for="password">密码</label>
-          <input
-            id="password"
-            name="password"
+        <el-form-item label="密码" prop="password">
+          <el-input
             v-model="formData.password"
             type="password"
             placeholder="请输入密码"
-            required
-            :class="{ error: errors.password }"
+            show-password
+            clearable
+            size="large"
           />
-          <span v-if="errors.password" class="error-message">{{
-            errors.password
-          }}</span>
-        </div>
+        </el-form-item>
 
-        <div class="form-options">
-          <label class="checkbox-label">
-            <input 
-              v-model="formData.rememberMe" 
-              type="checkbox" 
-              name="rememberMe"
-            />
-            <span class="checkmark"></span>
-            记住我
-          </label>
-          <a href="#" @click.prevent="forgotPassword" class="forgot-link"
-            >忘记密码？</a
+        <el-form-item>
+          <div class="form-options">
+            <el-checkbox v-model="formData.rememberMe">
+              记住我
+            </el-checkbox>
+            <el-link type="primary" @click="forgotPassword">
+              忘记密码？
+            </el-link>
+          </div>
+        </el-form-item>
+
+        <el-form-item>
+          <el-button
+            type="primary"
+            :loading="loading"
+            @click="handleLogin"
+            size="large"
+            class="login-button"
           >
-        </div>
-
-        <button type="submit" class="login-btn" :disabled="loading">
-          <span v-if="loading" class="loading-spinner"></span>
-          {{ loading ? '登录中...' : '立即登录' }}
-        </button>
-      </form>
+            {{ loading ? '登录中...' : '立即登录' }}
+          </el-button>
+        </el-form-item>
+      </el-form>
 
       <div class="register-link">
-        还没有账号？ <a @click="goToRegister">立即注册</a>
+        还没有账号？ <el-link type="primary" @click="goToRegister">立即注册</el-link>
       </div>
     </div>
   </div>
@@ -74,6 +72,7 @@
   import { $success, $error, $warning, $info } from '@/utils/confirm.js'
 
   const router = useRouter()
+  const formRef = ref()
   const loading = ref(false)
 
   const formData = reactive({
@@ -82,38 +81,23 @@
     rememberMe: false,
   })
 
-  const errors = reactive({
-    login: '',
-    password: '',
-  })
-
-  // 验证表单
-  const validateForm = () => {
-    let isValid = true
-
-    // 重置错误信息
-    Object.keys(errors).forEach(key => {
-      errors[key] = ''
-    })
-
-    // 验证用户名
-    if (!formData.login.trim()) {
-      errors.login = '用户名或邮箱不能为空'
-      isValid = false
-    }
-
-    // 验证密码
-    if (!formData.password) {
-      errors.password = '密码不能为空'
-      isValid = false
-    }
-
-    return isValid
+  // 表单验证规则
+  const rules = {
+    login: [
+      { required: true, message: '请输入用户名或邮箱', trigger: 'blur' }
+    ],
+    password: [
+      { required: true, message: '请输入密码', trigger: 'blur' }
+    ]
   }
 
   // 处理登录
   const handleLogin = async () => {
-    if (!validateForm()) {
+    if (!formRef.value) return
+
+    try {
+      await formRef.value.validate()
+    } catch (error) {
       return
     }
 
@@ -129,22 +113,15 @@
         }),
       })
       if (response.status === true) {
-        // 保存用户信息到本地存储
-        // localStorage.setItem('userInfo', JSON.stringify(response.data))
         localStorage.setItem('token', response.data.token)
-        // 如果选择记住我，可以设置更长的过期时间
         if (formData.rememberMe) {
           localStorage.setItem('rememberMe', 'true')
         }
-        // 显示成功消息
         $success('登录成功！')
-        // 跳转到首页
         router.push('/home')
       }
-      // 移除 else 分支，因为 request.js 已经统一处理了错误消息
     } catch (error) {
       console.error('登录错误:', error)
-      // 网络错误或其他异常情况，request.js 已经处理了，这里不需要重复显示
     } finally {
       loading.value = false
     }
@@ -171,189 +148,182 @@
 
   .login-card {
     background: white;
-    border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+    padding: 50px;
     width: 100%;
-    max-width: 400px;
+    max-width: 480px;
+    backdrop-filter: blur(10px);
   }
 
   .login-header {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: 40px;
 
     h2 {
-      color: #333;
-      margin: 0 0 8px 0;
-      font-size: 28px;
-      font-weight: 600;
+      color: #2c3e50;
+      margin: 0 0 12px 0;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
     }
 
     p {
-      color: #666;
+      color: #7f8c8d;
       margin: 0;
-      font-size: 14px;
+      font-size: 16px;
+      font-weight: 400;
     }
   }
 
   .login-form {
-    .form-group {
-      margin-bottom: 20px;
+    :deep(.el-form-item) {
+      margin-bottom: 28px;
 
-      label {
-        display: block;
-        margin-bottom: 8px;
-        color: #333;
-        font-weight: 500;
-        font-size: 14px;
+      .el-form-item__label {
+        font-weight: 600;
+        color: #2c3e50;
+        font-size: 15px;
+        line-height: 1.4;
+        white-space: nowrap;
+        padding-right: 12px;
+        display: flex;
+        align-items: center;
+        height: 50px;
       }
 
-      input[type='text'],
-      input[type='password'] {
-        width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e1e5e9;
-        border-radius: 8px;
-        font-size: 14px;
-        transition: border-color 0.3s ease;
-        box-sizing: border-box;
+      .el-input {
+        .el-input__wrapper {
+          border-radius: 12px;
+          border: 2px solid #e8f0fe;
+          background: #fafbfc;
+          transition: all 0.3s ease;
+          box-shadow: none;
+          padding: 0 16px;
+          height: 50px;
 
-        &:focus {
-          outline: none;
+          &:hover {
+            border-color: #cbd5e0;
+            background: #ffffff;
+          }
+
+          &.is-focus {
+            border-color: #667eea;
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          }
+        }
+
+        .el-input__inner {
+          font-size: 15px;
+          color: #2c3e50;
+          height: 48px;
+
+          &::placeholder {
+            color: #a0aec0;
+            font-weight: 400;
+          }
+        }
+
+        .el-input__suffix {
+          .el-input__clear,
+          .el-input__password {
+            color: #a0aec0;
+            font-size: 16px;
+            transition: color 0.3s ease;
+
+            &:hover {
+              color: #667eea;
+            }
+          }
+        }
+      }
+    }
+
+    .form-options {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin-top: 8px;
+
+      .el-checkbox {
+        .el-checkbox__label {
+          color: #5a6c7d;
+          font-size: 14px;
+          font-weight: 500;
+        }
+
+        .el-checkbox__input.is-checked .el-checkbox__inner {
+          background-color: #667eea;
           border-color: #667eea;
         }
-
-        &.error {
-          border-color: #ff4757;
-        }
-
-        &::placeholder {
-          color: #999;
-        }
       }
 
-      .error-message {
-        color: #ff4757;
-        font-size: 12px;
-        margin-top: 4px;
-        display: block;
+      .el-link {
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+
+        &:hover {
+          text-decoration: underline;
+        }
       }
     }
-  }
 
-  .form-options {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-
-  .checkbox-label {
-    display: flex !important;
-    align-items: center;
-    cursor: pointer;
-    font-size: 14px;
-    color: #666;
-
-    input[type='checkbox'] {
-      display: none;
-    }
-
-    .checkmark {
-      width: 18px;
-      height: 18px;
-      border: 2px solid #e1e5e9;
-      border-radius: 4px;
-      margin-right: 8px;
-      position: relative;
+    .login-button {
+      width: 100%;
+      height: 52px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
       transition: all 0.3s ease;
-    }
+      margin-top: 8px;
 
-    input[type='checkbox']:checked + .checkmark {
-      background-color: #667eea;
-      border-color: #667eea;
-
-      &::after {
-        content: '✓';
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: white;
-        font-size: 12px;
-        font-weight: bold;
+      &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
       }
-    }
-  }
 
-  .forgot-link {
-    color: #667eea;
-    text-decoration: none;
-    font-size: 14px;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  .login-btn {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-
-    &:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-    }
-
-    &:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-  }
-
-  .loading-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid transparent;
-    border-top: 2px solid white;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
+      &:active {
+        transform: translateY(0);
+      }
     }
   }
 
   .register-link {
     text-align: center;
-    margin-top: 20px;
-    font-size: 14px;
-    color: #666;
+    margin-top: 30px;
+    font-size: 15px;
+    color: #5a6c7d;
 
-    a {
-      color: #667eea;
-      cursor: pointer;
-      text-decoration: none;
+    .el-link {
+      font-weight: 600;
+      margin-left: 4px;
+    }
+  }
 
-      &:hover {
-        text-decoration: underline;
+  // 响应式设计
+  @media (max-width: 480px) {
+    .login-card {
+      padding: 30px 25px;
+      margin: 10px;
+    }
+
+    .login-form {
+      :deep(.el-form-item__label) {
+        font-size: 14px;
+      }
+
+      .el-input .el-input__wrapper {
+        height: 46px;
+      }
+
+      .el-input .el-input__inner {
+        height: 44px;
+        font-size: 14px;
       }
     }
   }
