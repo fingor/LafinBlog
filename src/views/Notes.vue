@@ -5,12 +5,8 @@
       <div class="header-left">
         <el-icon class="book-icon"><Document /></el-icon>
         <span class="title">笔记</span>
-        <el-icon class="lock-icon"><Lock /></el-icon>
       </div>
       <div class="header-right">
-        <el-icon class="more-icon" @click="showHeaderMenu">
-          <MoreFilled />
-        </el-icon>
         <el-button type="primary" class="add-btn" @click="showAddDialog">
           <el-icon><Plus /></el-icon>
         </el-button>
@@ -20,141 +16,28 @@
     <!-- 侧边栏 -->
     <div class="notes-sidebar">
       <div v-if="loading" class="loading-container">
-        <el-loading-component />
+        <el-loading />
       </div>
       <div v-else class="sidebar-content">
-        <!-- 递归渲染树形结构 -->
-        <div
+        <!-- 递归渲染树结构 -->
+        <TreeNode
           v-for="item in treeData"
           :key="item.id"
-          class="tree-item"
-          :style="{ paddingLeft: item.level * 20 + 'px' }"
-          @click="handleItemClick(item, $event)"
-          @contextmenu="showContextMenu($event, item)"
-        >
-          <div
-            class="item-content"
-            :class="{
-              active: selectedItem === item.id && item.type === 'document',
-            }"
-          >
-            <el-icon
-              v-if="item.children && item.children.length > 0"
-              class="expand-icon"
-              @click.stop="handleToggleExpand(item)"
-            >
-              <ArrowDown v-if="item.expanded" />
-              <ArrowRight v-else />
-            </el-icon>
-            <el-icon v-else class="item-icon">
-              <Document v-if="item.type === 'document'" />
-              <Folder v-else />
-            </el-icon>
-            <span class="item-title">{{ item.title }}</span>
-            <el-icon
-              v-if="item.type === 'folder'"
-              class="add-icon"
-              @click.stop="showAddMenu($event, item)"
-            >
-              <Plus />
-            </el-icon>
-          </div>
-
-          <!-- 递归渲染子项 -->
-          <div
-            v-if="item.children && item.children.length > 0 && item.expanded"
-          >
-            <div
-              v-for="child in item.children"
-              :key="child.id"
-              class="tree-item"
-              :style="{ paddingLeft: child.level * 20 + 'px' }"
-              @click="handleItemClick(child, $event)"
-              @contextmenu="showContextMenu($event, child)"
-            >
-              <div
-                class="item-content"
-                :class="{
-                  active:
-                    selectedItem === child.id && child.type === 'document',
-                }"
-              >
-                <el-icon
-                  v-if="child.children && child.children.length > 0"
-                  class="expand-icon"
-                  @click.stop="handleToggleExpand(child)"
-                >
-                  <ArrowDown v-if="child.expanded" />
-                  <ArrowRight v-else />
-                </el-icon>
-                <el-icon v-else class="item-icon">
-                  <Document v-if="child.type === 'document'" />
-                  <Folder v-else />
-                </el-icon>
-                <span class="item-title">{{ child.title }}</span>
-                <el-icon
-                  v-if="child.type === 'folder'"
-                  class="add-icon"
-                  @click.stop="showAddMenu($event, child)"
-                >
-                  <Plus />
-                </el-icon>
-              </div>
-
-              <!-- 第三层子项 -->
-              <div
-                v-if="
-                  child.children && child.children.length > 0 && child.expanded
-                "
-              >
-                <div
-                  v-for="grandChild in child.children"
-                  :key="grandChild.id"
-                  class="tree-item"
-                  :style="{ paddingLeft: grandChild.level * 20 + 'px' }"
-                  @click="handleItemClick(grandChild, $event)"
-                  @contextmenu="showContextMenu($event, grandChild)"
-                >
-                  <div
-                    class="item-content"
-                    :class="{
-                      active:
-                        selectedItem === grandChild.id &&
-                        grandChild.type === 'document',
-                    }"
-                  >
-                    <el-icon
-                      v-if="
-                        grandChild.children && grandChild.children.length > 0
-                      "
-                      class="expand-icon"
-                      @click.stop="handleToggleExpand(grandChild)"
-                    >
-                      <ArrowDown v-if="grandChild.expanded" />
-                      <ArrowRight v-else />
-                    </el-icon>
-                    <el-icon v-else class="item-icon">
-                      <Document v-if="grandChild.type === 'document'" />
-                      <Folder v-else />
-                    </el-icon>
-                    <span class="item-title">{{ grandChild.title }}</span>
-                    <el-icon
-                      v-if="grandChild.type === 'folder'"
-                      class="add-icon"
-                      @click.stop="showAddMenu($event, grandChild)"
-                    >
-                      <Plus />
-                    </el-icon>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+          :item="item"
+          :selected-item="selectedItem"
+          :editing-item="editingItem"
+          v-model:editing-text="editingText"
+          @item-click="handleItemClick"
+          @toggle-expand="handleToggleExpand"
+          @show-context-menu="showContextMenu"
+          @show-add-menu="showAddMenu"
+          @save-edit="saveEdit"
+          @cancel-edit="cancelEdit"
+        />
       </div>
     </div>
 
-    <!-- 右侧菜单 -->
+    <!-- 右键菜单 -->
     <div
       v-if="contextMenu.visible"
       class="context-menu"
@@ -165,40 +48,26 @@
         <el-icon><Edit /></el-icon>
         <span>重命名</span>
       </div>
-      <div class="menu-item" @click="handleMoveOut">
-        <el-icon><FolderOpened /></el-icon>
-        <span>移出目录</span>
-      </div>
-      <div class="menu-divider"></div>
-      <div class="menu-item" @click="handleCopy">
-        <el-icon><CopyDocument /></el-icon>
-        <span>复制...</span>
-      </div>
-      <div class="menu-item" @click="handleMove">
-        <el-icon><FolderAdd /></el-icon>
-        <span>移动...</span>
-      </div>
-      <div class="menu-divider"></div>
       <div class="menu-item danger" @click="handleDelete">
         <el-icon><Delete /></el-icon>
         <span>删除</span>
       </div>
     </div>
 
-    <!-- 添加悬浮菜单 -->
+    <!-- 添加菜单 -->
     <div
       v-if="addMenu.visible"
-      class="add-menu"
+      class="context-menu"
       :style="{ left: addMenu.x + 'px', top: addMenu.y + 'px' }"
       @click.stop
     >
-      <div class="menu-item" @click="handleQuickAdd('folder')">
+      <div class="menu-item" @click="handleQuickAdd('folder', addMenu.item)">
         <el-icon><Folder /></el-icon>
-        <span>新增目录</span>
+        <span>新建文件夹</span>
       </div>
-      <div class="menu-item" @click="handleQuickAdd('document')">
+      <div class="menu-item" @click="handleQuickAdd('document', addMenu.item)">
         <el-icon><Document /></el-icon>
-        <span>新增文档</span>
+        <span>新建文档</span>
       </div>
     </div>
 
@@ -237,29 +106,18 @@
         </span>
       </template>
     </el-dialog>
-
-    <!-- 重命名对话框 -->
-    <el-dialog v-model="renameDialogVisible" title="重命名" width="400px">
-      <el-form :model="renameForm" label-width="80px">
-        <el-form-item label="名称">
-          <el-input
-            v-model="renameForm.title"
-            placeholder="请输入新名称"
-          ></el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="renameDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmRename">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup>
-  import { ref, reactive, onMounted, onUnmounted } from 'vue'
+  import {
+    ref,
+    reactive,
+    onMounted,
+    onUnmounted,
+    nextTick,
+    defineAsyncComponent,
+  } from 'vue'
   import {
     Document,
     Lock,
@@ -269,9 +127,6 @@
     ArrowRight,
     Folder,
     Edit,
-    FolderOpened,
-    CopyDocument,
-    FolderAdd,
     Delete,
   } from '@element-plus/icons-vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
@@ -281,13 +136,14 @@
     renameNoteItem,
     deleteNoteItem,
     updateExpandStatus,
-    moveNoteItem,
-    copyNoteItem,
-    getAllFolders as getAllFoldersApi,
   } from '@/api/notesApi'
+
+  // 递归组件
+  const TreeNode = defineAsyncComponent(() => import('./TreeNode.vue'))
 
   // 响应式数据
   const selectedItem = ref('')
+
   const contextMenu = reactive({
     visible: false,
     x: 0,
@@ -303,7 +159,6 @@
   })
 
   const addDialogVisible = ref(false)
-  const renameDialogVisible = ref(false)
   const loading = ref(false)
 
   const addForm = reactive({
@@ -312,54 +167,34 @@
     parentId: '',
   })
 
-  const renameForm = reactive({
-    title: '',
-  })
-
-  // 数据
   const treeData = ref([])
 
-  // 方法
-  const handleItemClick = (item, event) => {
-    // 阻止事件冒泡，避免触发父级的事件
-    event.stopPropagation()
+  // 内联编辑相关
+  const editingItem = ref(null)
+  const editingText = ref('')
 
+  // 方法
+  const handleItemClick = item => {
     if (item.type === 'document') {
-      // 只有文档才触发选中
       selectedItem.value = item.id
-      console.log('选中文档:', item.id)
     } else {
-      // 文件夹只触发展开/收起
       handleToggleExpand(item)
     }
   }
 
-  const handleItemSelect = id => {
-    selectedItem.value = id
-    console.log('选中文档:', id)
-  }
-
   const handleToggleExpand = async item => {
     try {
-      // 直接更新本地状态，避免API调用延迟
       item.expanded = !item.expanded
-      console.log('切换展开状态:', item.id, item.expanded)
-
-      // 异步更新服务器状态
       const response = await updateExpandStatus({
         id: item.id,
         expanded: item.expanded,
       })
-
       if (response.code !== 200) {
-        // 如果服务器更新失败，回滚本地状态
         item.expanded = !item.expanded
         ElMessage.error(response.message || '操作失败')
       }
     } catch (error) {
-      // 如果API调用失败，回滚本地状态
       item.expanded = !item.expanded
-      console.error('更新展开状态失败:', error)
       ElMessage.error('操作失败')
     }
   }
@@ -375,6 +210,69 @@
     contextMenu.visible = false
   }
 
+  const saveEdit = async () => {
+    if (!editingItem.value) return
+
+    // 找到当前编辑的项目
+    const currentItem = findItemById(editingItem.value)
+    if (!currentItem) return
+
+    // 如果输入为空，使用原名称
+    const newTitle = editingText.value.trim() || currentItem.title
+
+    // 无论名称是否变化，都调用API保存
+    try {
+      const response = await renameNoteItem({
+        id: editingItem.value,
+        title: newTitle,
+      })
+
+      if (response.code === 200) {
+        currentItem.title = newTitle
+        ElMessage.success('重命名成功')
+      } else {
+        ElMessage.error(response.message || '重命名失败')
+      }
+    } catch (error) {
+      ElMessage.error('重命名失败')
+    }
+
+    cancelEdit()
+  }
+
+  const handleQuickAdd = async (type, parentItem) => {
+    const defaultName = type === 'folder' ? '新建文件夹' : '新建文档'
+
+    try {
+      const response = await addNoteItem({
+        title: defaultName,
+        type,
+        parentId: parentItem ? parentItem.id : null,
+      })
+
+      if (response.code === 200) {
+        await loadNotesData()
+        // 找到新创建的项目并开始编辑
+        const newItem = findNewlyCreatedItem(
+          parentItem ? parentItem.id : null,
+          type,
+          defaultName
+        )
+        if (newItem) {
+          startEdit(newItem)
+        }
+      } else {
+        ElMessage.error(response.message || '添加失败')
+      }
+    } catch (error) {
+      ElMessage.error('添加失败')
+    }
+
+    // 隐藏添加菜单
+    hideAddMenu()
+  }
+
+  // 显示添加选项菜单
   const showAddMenu = (event, item) => {
     addMenu.visible = true
     addMenu.x = event.clientX
@@ -386,35 +284,50 @@
     addMenu.visible = false
   }
 
-  const handleQuickAdd = async type => {
-    if (!addMenu.item) return
-
-    const title = type === 'folder' ? '新建文件夹' : '新建文档'
-    const parentId = addMenu.item.id
-
-    try {
-      const response = await addNoteItem({
-        title,
-        type,
-        parentId,
-      })
-
-      if (response.code === 200) {
-        ElMessage.success('添加成功')
-        await loadNotesData()
-      } else {
-        ElMessage.error(response.message || '添加失败')
+  const findNewlyCreatedItem = (parentId, type, title) => {
+    const findInTree = items => {
+      for (const item of items) {
+        // 检查是否是我们要找的项目
+        if (item.type === type && item.title === title) {
+          // 如果是根级项目，parentId应该为空
+          if (!parentId && !item.parentId) {
+            return item
+          }
+          // 如果有父级，检查parentId
+          if (parentId && item.parentId === parentId) {
+            return item
+          }
+        }
+        if (item.children && item.children.length > 0) {
+          const found = findInTree(item.children)
+          if (found) return found
+        }
       }
-    } catch (error) {
-      console.error('添加失败:', error)
-      ElMessage.error('添加失败')
+      return null
     }
+    return findInTree(treeData.value)
+  }
 
-    hideAddMenu()
+  const startEdit = item => {
+    editingItem.value = item.id
+    editingText.value = item.title
+    // 使用 nextTick 确保 DOM 更新后再设置焦点
+    nextTick(() => {
+      // 查找当前编辑的输入框并设置焦点
+      const inputElement = document.querySelector('.inline-edit-input')
+      if (inputElement) {
+        inputElement.focus()
+        inputElement.select()
+      }
+    })
+  }
+
+  const cancelEdit = () => {
+    editingItem.value = null
+    editingText.value = ''
   }
 
   const showHeaderMenu = () => {
-    // 显示头部菜单，类似截图中的三个点菜单
     ElMessage.info('头部菜单功能待实现')
   }
 
@@ -432,7 +345,7 @@
         if (item.type === 'folder') {
           folders.push(item)
         }
-        if (item.children && item.children.length > 0) {
+        if (item.children?.length) {
           traverse(item.children)
         }
       })
@@ -453,7 +366,6 @@
         type: addForm.type,
         parentId: addForm.parentId,
       })
-
       if (response.code === 200) {
         addDialogVisible.value = false
         ElMessage.success('添加成功')
@@ -462,116 +374,25 @@
         ElMessage.error(response.message || '添加失败')
       }
     } catch (error) {
-      console.error('添加失败:', error)
       ElMessage.error('添加失败')
     }
   }
 
   const handleRename = () => {
     if (!contextMenu.item) return
-    renameForm.title = contextMenu.item.title
-    renameDialogVisible.value = true
-    hideContextMenu()
-  }
-
-  const confirmRename = async () => {
-    if (!renameForm.title.trim()) {
-      ElMessage.warning('请输入名称')
-      return
-    }
-
-    if (!contextMenu.item) return
-
-    try {
-      const response = await renameNoteItem({
-        id: contextMenu.item.id,
-        title: renameForm.title,
-      })
-
-      if (response.code === 200) {
-        contextMenu.item.title = renameForm.title
-        renameDialogVisible.value = false
-        ElMessage.success('重命名成功')
-      } else {
-        ElMessage.error(response.message || '重命名失败')
-      }
-    } catch (error) {
-      console.error('重命名失败:', error)
-      ElMessage.error('重命名失败')
-    }
-  }
-
-  const handleMoveOut = async () => {
-    if (!contextMenu.item) return
-
-    try {
-      const response = await ElMessageBox.confirm(
-        '确定要移出目录吗？',
-        '提示',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning',
-        }
-      )
-
-      if (response === 'confirm') {
-        const moveResponse = await moveNoteItem({
-          id: contextMenu.item.id,
-          targetParentId: null,
-        })
-
-        if (moveResponse.code === 200) {
-          ElMessage.success('移出目录成功')
-          await loadNotesData()
-        } else {
-          ElMessage.error(moveResponse.message || '移出失败')
-        }
-      }
-    } catch (error) {
-      if (error !== 'cancel') {
-        console.error('移出目录失败:', error)
-        ElMessage.error('移出失败')
-      }
-    }
-    hideContextMenu()
-  }
-
-  const handleCopy = async () => {
-    if (!contextMenu.item) return
-
-    try {
-      const response = await copyNoteItem({
-        id: contextMenu.item.id,
-        targetParentId: null,
-      })
-
-      if (response.code === 200) {
-        ElMessage.success('复制成功')
-        await loadNotesData()
-      } else {
-        ElMessage.error(response.message || '复制失败')
-      }
-    } catch (error) {
-      console.error('复制失败:', error)
-      ElMessage.error('复制失败')
-    }
-    hideContextMenu()
-  }
-
-  const handleMove = () => {
-    if (!contextMenu.item) return
-    ElMessage.info('移动功能待实现')
-    console.log('移动项目:', contextMenu.item)
+    startEdit(contextMenu.item)
     hideContextMenu()
   }
 
   const handleDelete = async () => {
     if (!contextMenu.item) return
 
+    // 隐藏右键菜单
+    hideContextMenu()
+
     try {
-      const response = await ElMessageBox.confirm(
-        '确定要删除吗？此操作不可恢复！',
+      await ElMessageBox.confirm(
+        `确定要删除"${contextMenu.item.title}"吗？此操作不可恢复！`,
         '警告',
         {
           confirmButtonText: '确定',
@@ -580,40 +401,30 @@
         }
       )
 
-      if (response === 'confirm') {
-        const deleteResponse = await deleteNoteItem(contextMenu.item.id)
-
-        if (deleteResponse.code === 200) {
-          ElMessage.success('删除成功')
-          await loadNotesData()
-        } else {
-          ElMessage.error(deleteResponse.message || '删除失败')
-        }
+      const response = await deleteNoteItem(contextMenu.item.id)
+      if (response.code === 200) {
+        ElMessage.success('删除成功')
+        await loadNotesData()
+      } else {
+        ElMessage.error(response.message || '删除失败')
       }
     } catch (error) {
       if (error !== 'cancel') {
-        console.error('删除失败:', error)
         ElMessage.error('删除失败')
       }
     }
-    hideContextMenu()
   }
 
-  // 加载笔记数据
   const loadNotesData = async () => {
-    console.log('加载笔记数据')
     loading.value = true
     try {
       const response = await getNotesData()
-      console.log('API响应:', response)
       if (response.code === 200) {
         treeData.value = response.data
-        console.log('树形数据:', treeData.value)
       } else {
         ElMessage.error(response.message || '加载失败')
       }
     } catch (error) {
-      console.error('加载数据失败:', error)
       ElMessage.error('加载失败')
     } finally {
       loading.value = false
@@ -631,6 +442,23 @@
     document.removeEventListener('click', hideContextMenu)
     document.removeEventListener('click', hideAddMenu)
   })
+
+  // 根据ID查找项目
+  const findItemById = id => {
+    const findInTree = items => {
+      for (const item of items) {
+        if (item.id === id) {
+          return item
+        }
+        if (item.children && item.children.length > 0) {
+          const found = findInTree(item.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    return findInTree(treeData.value)
+  }
 </script>
 
 <style scoped lang="scss">
@@ -641,9 +469,6 @@
     background: #ffffff;
     width: 300px;
     border-right: 1px solid #e4e7ed;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
     user-select: none;
   }
 
@@ -724,101 +549,7 @@
     }
   }
 
-  .tree-item {
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 4px;
-    margin: 1px 8px;
-
-    .item-content {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      min-height: 32px;
-      border-radius: 4px;
-      position: relative;
-      transition: all 0.2s;
-
-      &:hover {
-        background: #f5f7fa;
-
-        .add-icon {
-          opacity: 1;
-        }
-      }
-
-      &.active {
-        background: #ecf5ff;
-
-        .item-title {
-          color: #409eff;
-          font-weight: 500;
-        }
-      }
-
-      .expand-icon {
-        font-size: 12px;
-        color: #909399;
-        transition: all 0.2s;
-        cursor: pointer;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        &:hover {
-          color: #409eff;
-          background: rgba(64, 158, 255, 0.1);
-          border-radius: 2px;
-        }
-      }
-
-      .item-icon {
-        font-size: 16px;
-        color: #909399;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .item-title {
-        flex: 1;
-        font-size: 14px;
-        color: #606266;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        line-height: 1.4;
-      }
-
-      .add-icon {
-        font-size: 14px;
-        color: #c0c4cc;
-        cursor: pointer;
-        padding: 2px;
-        border-radius: 2px;
-        opacity: 0;
-        transition: all 0.2s;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        &:hover {
-          color: #409eff;
-          background: rgba(64, 158, 255, 0.1);
-        }
-      }
-    }
-  }
-
-  .context-menu,
-  .add-menu {
+  .context-menu {
     position: fixed;
     background: #fff;
     border: 1px solid #e4e7ed;
@@ -826,7 +557,7 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
     padding: 6px 0;
     z-index: 9999;
-    min-width: 140px;
+    min-width: 120px;
     backdrop-filter: blur(8px);
 
     .menu-item {
@@ -858,22 +589,6 @@
       .el-icon {
         font-size: 14px;
       }
-    }
-
-    .menu-divider {
-      height: 1px;
-      background: #e4e7ed;
-      margin: 4px 8px;
-    }
-  }
-
-  .add-menu {
-    min-width: 120px;
-    padding: 4px 0;
-
-    .menu-item {
-      padding: 6px 12px;
-      font-size: 13px;
     }
   }
 
