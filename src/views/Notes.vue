@@ -37,7 +37,7 @@
       </div>
     </div>
 
-    <!-- 右键菜单 -->
+    <!-- ...菜单 -->
     <div
       v-if="contextMenu.visible"
       class="context-menu"
@@ -118,17 +118,7 @@
     nextTick,
     defineAsyncComponent,
   } from 'vue'
-  import {
-    Document,
-    Lock,
-    Plus,
-    MoreFilled,
-    ArrowDown,
-    ArrowRight,
-    Folder,
-    Edit,
-    Delete,
-  } from '@element-plus/icons-vue'
+  import { Document, Plus, Folder, Edit, Delete } from '@element-plus/icons-vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import {
     getNotesData,
@@ -143,6 +133,11 @@
 
   // 响应式数据
   const selectedItem = ref('')
+  const treeData = ref([])
+  const loading = ref(false)
+  const addDialogVisible = ref(false)
+  const editingItem = ref(null)
+  const editingText = ref('')
 
   const contextMenu = reactive({
     visible: false,
@@ -158,22 +153,44 @@
     item: null,
   })
 
-  const addDialogVisible = ref(false)
-  const loading = ref(false)
-
   const addForm = reactive({
     type: 'folder',
     title: '',
     parentId: '',
   })
 
-  const treeData = ref([])
+  // 通用方法：隐藏所有菜单
+  const hideAllMenus = () => {
+    contextMenu.visible = false
+    addMenu.visible = false
+  }
 
-  // 内联编辑相关
-  const editingItem = ref(null)
-  const editingText = ref('')
+  // 通用方法：在树中查找项目
+  const findInTree = (items, predicate) => {
+    for (const item of items) {
+      if (predicate(item)) return item
+      if (item.children?.length) {
+        const found = findInTree(item.children, predicate)
+        if (found) return found
+      }
+    }
+    return null
+  }
 
-  // 方法
+  // 根据ID查找项目
+  const findItemById = id => findInTree(treeData.value, item => item.id === id)
+
+  // 查找新创建的项目
+  const findNewlyCreatedItem = (parentId, type, title) => {
+    return findInTree(treeData.value, item => {
+      if (item.type === type && item.title === title) {
+        return !parentId ? !item.parentId : item.parentId === parentId
+      }
+      return false
+    })
+  }
+
+  // 事件处理方法
   const handleItemClick = item => {
     if (item.type === 'document') {
       selectedItem.value = item.id
@@ -206,21 +223,21 @@
     contextMenu.item = item
   }
 
-  const hideContextMenu = () => {
-    contextMenu.visible = false
+  const showAddMenu = (event, item) => {
+    addMenu.visible = true
+    addMenu.x = event.clientX
+    addMenu.y = event.clientY
+    addMenu.item = item
   }
 
   const saveEdit = async () => {
     if (!editingItem.value) return
 
-    // 找到当前编辑的项目
     const currentItem = findItemById(editingItem.value)
     if (!currentItem) return
 
-    // 如果输入为空，使用原名称
     const newTitle = editingText.value.trim() || currentItem.title
 
-    // 无论名称是否变化，都调用API保存
     try {
       const response = await renameNoteItem({
         id: editingItem.value,
@@ -247,14 +264,13 @@
       const response = await addNoteItem({
         title: defaultName,
         type,
-        parentId: parentItem ? parentItem.id : null,
+        parentId: parentItem?.id || null,
       })
 
       if (response.code === 200) {
         await loadNotesData()
-        // 找到新创建的项目并开始编辑
         const newItem = findNewlyCreatedItem(
-          parentItem ? parentItem.id : null,
+          parentItem?.id || null,
           type,
           defaultName
         )
@@ -268,52 +284,13 @@
       ElMessage.error('添加失败')
     }
 
-    // 隐藏添加菜单
-    hideAddMenu()
-  }
-
-  // 显示添加选项菜单
-  const showAddMenu = (event, item) => {
-    addMenu.visible = true
-    addMenu.x = event.clientX
-    addMenu.y = event.clientY
-    addMenu.item = item
-  }
-
-  const hideAddMenu = () => {
-    addMenu.visible = false
-  }
-
-  const findNewlyCreatedItem = (parentId, type, title) => {
-    const findInTree = items => {
-      for (const item of items) {
-        // 检查是否是我们要找的项目
-        if (item.type === type && item.title === title) {
-          // 如果是根级项目，parentId应该为空
-          if (!parentId && !item.parentId) {
-            return item
-          }
-          // 如果有父级，检查parentId
-          if (parentId && item.parentId === parentId) {
-            return item
-          }
-        }
-        if (item.children && item.children.length > 0) {
-          const found = findInTree(item.children)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return findInTree(treeData.value)
+    hideAllMenus()
   }
 
   const startEdit = item => {
     editingItem.value = item.id
     editingText.value = item.title
-    // 使用 nextTick 确保 DOM 更新后再设置焦点
     nextTick(() => {
-      // 查找当前编辑的输入框并设置焦点
       const inputElement = document.querySelector('.inline-edit-input')
       if (inputElement) {
         inputElement.focus()
@@ -325,10 +302,6 @@
   const cancelEdit = () => {
     editingItem.value = null
     editingText.value = ''
-  }
-
-  const showHeaderMenu = () => {
-    ElMessage.info('头部菜单功能待实现')
   }
 
   const showAddDialog = () => {
@@ -381,14 +354,13 @@
   const handleRename = () => {
     if (!contextMenu.item) return
     startEdit(contextMenu.item)
-    hideContextMenu()
+    hideAllMenus()
   }
 
   const handleDelete = async () => {
     if (!contextMenu.item) return
 
-    // 隐藏右键菜单
-    hideContextMenu()
+    hideAllMenus()
 
     try {
       await ElMessageBox.confirm(
@@ -433,32 +405,13 @@
 
   // 生命周期
   onMounted(async () => {
-    document.addEventListener('click', hideContextMenu)
-    document.addEventListener('click', hideAddMenu)
+    document.addEventListener('click', hideAllMenus)
     await loadNotesData()
   })
 
   onUnmounted(() => {
-    document.removeEventListener('click', hideContextMenu)
-    document.removeEventListener('click', hideAddMenu)
+    document.removeEventListener('click', hideAllMenus)
   })
-
-  // 根据ID查找项目
-  const findItemById = id => {
-    const findInTree = items => {
-      for (const item of items) {
-        if (item.id === id) {
-          return item
-        }
-        if (item.children && item.children.length > 0) {
-          const found = findInTree(item.children)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return findInTree(treeData.value)
-  }
 </script>
 
 <style scoped lang="scss">

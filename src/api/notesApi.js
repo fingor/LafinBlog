@@ -255,16 +255,6 @@ export const getNotesData = async () => {
   }
 }
 
-// 获取原始数据（单层级）
-export const getRawNotesData = async () => {
-  await delay()
-  return {
-    code: 200,
-    data: JSON.parse(JSON.stringify(notesData)),
-    message: '获取成功'
-  }
-}
-
 // 添加新项目
 export const addNoteItem = async params => {
   await delay()
@@ -417,116 +407,6 @@ export const updateExpandStatus = async params => {
     code: 200,
     data: item,
     message: '更新成功'
-  }
-}
-
-// 移动项目
-export const moveNoteItem = async params => {
-  await delay()
-
-  const { id, targetParentId } = params
-
-  if (!id) {
-    return {
-      code: 400,
-      message: '参数错误'
-    }
-  }
-
-  const item = notesData.find(item => item.id === id)
-  if (!item) {
-    return {
-      code: 404,
-      message: '项目不存在'
-    }
-  }
-
-  // 检查是否移动到自己的子项目下
-  if (targetParentId) {
-    const checkCircular = (parentId, targetId) => {
-      if (parentId === targetId) return true
-      const parent = notesData.find(item => item.id === parentId)
-      if (parent && parent.pid) {
-        return checkCircular(parent.pid, targetId)
-      }
-      return false
-    }
-
-    if (checkCircular(targetParentId, id)) {
-      return {
-        code: 400,
-        message: '不能移动到子项目下'
-      }
-    }
-  }
-
-  // 更新 pid 和 level
-  item.pid = targetParentId || null
-  if (targetParentId) {
-    const parent = notesData.find(item => item.id === targetParentId)
-    item.level = parent ? parent.level + 1 : 0
-  } else {
-    item.level = 0
-  }
-
-  // 重新计算 order
-  const siblings = notesData.filter(item => item.pid === targetParentId)
-  item.order = siblings.length > 0 ? Math.max(...siblings.map(s => s.order)) + 1 : 1
-
-  return {
-    code: 200,
-    data: item,
-    message: '移动成功'
-  }
-}
-
-// 复制项目
-export const copyNoteItem = async params => {
-  await delay()
-
-  const { id, targetParentId } = params
-
-  if (!id) {
-    return {
-      code: 400,
-      message: '参数错误'
-    }
-  }
-
-  const sourceItem = notesData.find(item => item.id === id)
-  if (!sourceItem) {
-    return {
-      code: 404,
-      message: '源项目不存在'
-    }
-  }
-
-  // 深度复制项目及其子项目
-  const copyItem = (item, newPid) => {
-    const newItem = {
-      ...item,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      pid: newPid,
-      level: newPid ? (notesData.find(p => p.id === newPid)?.level || 0) + 1 : 0,
-      order: 1
-    }
-    notesData.push(newItem)
-
-    // 复制子项目
-    const children = notesData.filter(child => child.pid === item.id)
-    children.forEach(child => {
-      copyItem(child, newItem.id)
-    })
-
-    return newItem
-  }
-
-  const copiedItem = copyItem(sourceItem, targetParentId || null)
-
-  return {
-    code: 200,
-    data: copiedItem,
-    message: '复制成功'
   }
 }
 

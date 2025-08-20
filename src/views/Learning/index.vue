@@ -79,6 +79,7 @@
 <style scoped lang="scss">
   .learning {
     display: flex;
+    height: 100%;
     .content {
       padding-left: 20px;
       flex: 1;
