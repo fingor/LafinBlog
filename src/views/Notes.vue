@@ -19,38 +19,62 @@
         <el-loading />
       </div>
       <div v-else class="sidebar-content">
-        <!-- 递归渲染树结构 -->
-        <TreeNode
-          v-for="item in treeData"
-          :key="item.id"
-          :item="item"
-          :selected-item="selectedItem"
-          :editing-item="editingItem"
-          v-model:editing-text="editingText"
-          @item-click="handleItemClick"
-          @toggle-expand="handleToggleExpand"
-          @show-context-menu="showContextMenu"
-          @show-add-menu="showAddMenu"
-          @save-edit="saveEdit"
-          @cancel-edit="cancelEdit"
-        />
-      </div>
-    </div>
-
-    <!-- ...菜单 -->
-    <div
-      v-if="contextMenu.visible"
-      class="context-menu"
-      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
-      @click.stop
-    >
-      <div class="menu-item" @click="handleRename">
-        <el-icon><Edit /></el-icon>
-        <span>重命名</span>
-      </div>
-      <div class="menu-item danger" @click="handleDelete">
-        <el-icon><Delete /></el-icon>
-        <span>删除</span>
+        <el-tree
+          :data="treeData"
+          :props="treeProps"
+          node-key="id"
+          :default-expand-all="false"
+          :default-expanded-keys="Array.from(expandedKeys)"
+          :expand-on-click-node="false"
+          :highlight-current="true"
+          @node-click="handleNodeClick"
+          @node-expand="handleNodeExpand"
+          @node-collapse="handleNodeCollapse"
+        >
+          <template #default="{ node, data }">
+            <div class="custom-tree-node">
+              <div class="node-content">
+                <el-icon class="node-icon">
+                  <Folder v-if="data.type === 'folder'" />
+                  <Document v-else />
+                </el-icon>
+                <span class="node-label">{{ data.title }}</span>
+              </div>
+              <div class="node-actions">
+                <el-button
+                  v-if="data.type === 'folder'"
+                  type="primary"
+                  link
+                  size="small"
+                  @click.stop="showAddMenu($event, data)"
+                >
+                  <el-icon><Plus /></el-icon>
+                </el-button>
+                <el-dropdown trigger="click" @command="handleCommand">
+                  <el-button type="primary" link size="small" @click.stop>
+                    <el-icon><MoreFilled /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item :command="{ type: 'rename', data }">
+                        <el-icon><Edit /></el-icon>
+                        重命名
+                      </el-dropdown-item>
+                      <el-dropdown-item
+                        :command="{ type: 'delete', data }"
+                        divided
+                        class="danger-item"
+                      >
+                        <el-icon><Delete /></el-icon>
+                        删除
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </div>
+          </template>
+        </el-tree>
       </div>
     </div>
 
@@ -106,19 +130,39 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 重命名对话框 -->
+    <el-dialog v-model="renameDialogVisible" title="重命名" width="400px">
+      <el-form :model="renameForm" label-width="80px">
+        <el-form-item label="名称">
+          <el-input
+            v-model="renameForm.title"
+            placeholder="请输入新名称"
+            @keyup.enter="handleRename"
+            ref="renameInputRef"
+          ></el-input>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="cancelRename">取消</el-button>
+          <el-button type="primary" @click="handleRename">确定</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
+  import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
   import {
-    ref,
-    reactive,
-    onMounted,
-    onUnmounted,
-    nextTick,
-    defineAsyncComponent,
-  } from 'vue'
-  import { Document, Plus, Folder, Edit, Delete } from '@element-plus/icons-vue'
+    Document,
+    Plus,
+    Folder,
+    Edit,
+    Delete,
+    MoreFilled,
+  } from '@element-plus/icons-vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import {
     getNotesData,
@@ -128,23 +172,18 @@
     updateExpandStatus,
   } from '@/api/notesApi'
 
-  // 递归组件
-  const TreeNode = defineAsyncComponent(() => import('./TreeNode.vue'))
-
   // 响应式数据
   const selectedItem = ref('')
   const treeData = ref([])
   const loading = ref(false)
   const addDialogVisible = ref(false)
-  const editingItem = ref(null)
-  const editingText = ref('')
+  const expandedKeys = ref(new Set())
+  const renameDialogVisible = ref(false)
+  const renameForm = reactive({ id: null, title: '' })
+  const renameInputRef = ref(null)
 
-  const contextMenu = reactive({
-    visible: false,
-    x: 0,
-    y: 0,
-    item: null,
-  })
+  // 树组件配置
+  const treeProps = { children: 'children', label: 'title' }
 
   const addMenu = reactive({
     visible: false,
@@ -159,13 +198,7 @@
     parentId: '',
   })
 
-  // 通用方法：隐藏所有菜单
-  const hideAllMenus = () => {
-    contextMenu.visible = false
-    addMenu.visible = false
-  }
-
-  // 通用方法：在树中查找项目
+  // 工具方法
   const findInTree = (items, predicate) => {
     for (const item of items) {
       if (predicate(item)) return item
@@ -177,50 +210,51 @@
     return null
   }
 
-  // 根据ID查找项目
   const findItemById = id => findInTree(treeData.value, item => item.id === id)
 
-  // 查找新创建的项目
-  const findNewlyCreatedItem = (parentId, type, title) => {
-    return findInTree(treeData.value, item => {
-      if (item.type === type && item.title === title) {
-        return !parentId ? !item.parentId : item.parentId === parentId
-      }
-      return false
-    })
-  }
-
   // 事件处理方法
-  const handleItemClick = item => {
-    if (item.type === 'document') {
-      selectedItem.value = item.id
-    } else {
-      handleToggleExpand(item)
+  const handleNodeClick = data => {
+    if (data.type === 'document') {
+      selectedItem.value = data.id
+      ElMessage.success(`选中文档: ${data.title}`)
     }
   }
 
-  const handleToggleExpand = async item => {
+  const handleNodeExpand = async data => {
     try {
-      item.expanded = !item.expanded
-      const response = await updateExpandStatus({
-        id: item.id,
-        expanded: item.expanded,
-      })
+      data.expanded = true
+      expandedKeys.value.add(data.id)
+      const response = await updateExpandStatus({ id: data.id, expanded: true })
       if (response.code !== 200) {
-        item.expanded = !item.expanded
-        ElMessage.error(response.message || '操作失败')
+        data.expanded = false
+        expandedKeys.value.delete(data.id)
+        ElMessage.error(response.message || '展开失败')
       }
     } catch (error) {
-      item.expanded = !item.expanded
-      ElMessage.error('操作失败')
+      data.expanded = false
+      expandedKeys.value.delete(data.id)
+      ElMessage.error('展开失败')
     }
   }
 
-  const showContextMenu = (event, item) => {
-    contextMenu.visible = true
-    contextMenu.x = event.clientX
-    contextMenu.y = event.clientY
-    contextMenu.item = item
+  const handleNodeCollapse = async data => {
+    try {
+      data.expanded = false
+      expandedKeys.value.delete(data.id)
+      const response = await updateExpandStatus({
+        id: data.id,
+        expanded: false,
+      })
+      if (response.code !== 200) {
+        data.expanded = true
+        expandedKeys.value.add(data.id)
+        ElMessage.error(response.message || '收起失败')
+      }
+    } catch (error) {
+      data.expanded = true
+      expandedKeys.value.add(data.id)
+      ElMessage.error('收起失败')
+    }
   }
 
   const showAddMenu = (event, item) => {
@@ -230,78 +264,35 @@
     addMenu.item = item
   }
 
-  const saveEdit = async () => {
-    if (!editingItem.value) return
-
-    const currentItem = findItemById(editingItem.value)
-    if (!currentItem) return
-
-    const newTitle = editingText.value.trim() || currentItem.title
-
-    try {
-      const response = await renameNoteItem({
-        id: editingItem.value,
-        title: newTitle,
-      })
-
-      if (response.code === 200) {
-        currentItem.title = newTitle
-        ElMessage.success('重命名成功')
-      } else {
-        ElMessage.error(response.message || '重命名失败')
-      }
-    } catch (error) {
-      ElMessage.error('重命名失败')
+  const handleCommand = ({ type, data }) => {
+    switch (type) {
+      case 'rename':
+        startRename(data)
+        break
+      case 'delete':
+        handleDelete(data)
+        break
     }
-
-    cancelEdit()
   }
 
   const handleQuickAdd = async (type, parentItem) => {
     const defaultName = type === 'folder' ? '新建文件夹' : '新建文档'
-
     try {
       const response = await addNoteItem({
         title: defaultName,
         type,
         parentId: parentItem?.id || null,
       })
-
       if (response.code === 200) {
         await loadNotesData()
-        const newItem = findNewlyCreatedItem(
-          parentItem?.id || null,
-          type,
-          defaultName
-        )
-        if (newItem) {
-          startEdit(newItem)
-        }
+        ElMessage.success(`添加${type === 'folder' ? '文件夹' : '文档'}成功`)
       } else {
         ElMessage.error(response.message || '添加失败')
       }
     } catch (error) {
       ElMessage.error('添加失败')
     }
-
-    hideAllMenus()
-  }
-
-  const startEdit = item => {
-    editingItem.value = item.id
-    editingText.value = item.title
-    nextTick(() => {
-      const inputElement = document.querySelector('.inline-edit-input')
-      if (inputElement) {
-        inputElement.focus()
-        inputElement.select()
-      }
-    })
-  }
-
-  const cancelEdit = () => {
-    editingItem.value = null
-    editingText.value = ''
+    addMenu.visible = false
   }
 
   const showAddDialog = () => {
@@ -315,12 +306,8 @@
     const folders = []
     const traverse = items => {
       items.forEach(item => {
-        if (item.type === 'folder') {
-          folders.push(item)
-        }
-        if (item.children?.length) {
-          traverse(item.children)
-        }
+        if (item.type === 'folder') folders.push(item)
+        if (item.children?.length) traverse(item.children)
       })
     }
     traverse(treeData.value)
@@ -332,7 +319,6 @@
       ElMessage.warning('请输入名称')
       return
     }
-
     try {
       const response = await addNoteItem({
         title: addForm.title,
@@ -351,29 +337,14 @@
     }
   }
 
-  const handleRename = () => {
-    if (!contextMenu.item) return
-    startEdit(contextMenu.item)
-    hideAllMenus()
-  }
-
-  const handleDelete = async () => {
-    if (!contextMenu.item) return
-
-    hideAllMenus()
-
+  const handleDelete = async item => {
     try {
       await ElMessageBox.confirm(
-        `确定要删除"${contextMenu.item.title}"吗？此操作不可恢复！`,
+        `确定要删除"${item.title}"吗？此操作不可恢复！`,
         '警告',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning',
-        }
+        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
       )
-
-      const response = await deleteNoteItem(contextMenu.item.id)
+      const response = await deleteNoteItem(item.id)
       if (response.code === 200) {
         ElMessage.success('删除成功')
         await loadNotesData()
@@ -381,10 +352,52 @@
         ElMessage.error(response.message || '删除失败')
       }
     } catch (error) {
-      if (error !== 'cancel') {
-        ElMessage.error('删除失败')
-      }
+      if (error !== 'cancel') ElMessage.error('删除失败')
     }
+  }
+
+  // 重命名相关方法
+  const startRename = item => {
+    renameForm.id = item.id
+    renameForm.title = item.title
+    renameDialogVisible.value = true
+    nextTick(() => {
+      if (renameInputRef.value) {
+        renameInputRef.value.focus()
+        renameInputRef.value.select()
+      }
+    })
+  }
+
+  const handleRename = async () => {
+    if (!renameForm.title.trim()) {
+      ElMessage.warning('请输入新名称')
+      return
+    }
+    const currentItem = findItemById(renameForm.id)
+    if (!currentItem) return
+
+    try {
+      const response = await renameNoteItem({
+        id: renameForm.id,
+        title: renameForm.title,
+      })
+      if (response.code === 200) {
+        currentItem.title = renameForm.title
+        ElMessage.success('重命名成功')
+      } else {
+        ElMessage.error(response.message || '重命名失败')
+      }
+    } catch (error) {
+      ElMessage.error('重命名失败')
+    }
+    cancelRename()
+  }
+
+  const cancelRename = () => {
+    renameDialogVisible.value = false
+    renameForm.title = ''
+    renameForm.id = null
   }
 
   const loadNotesData = async () => {
@@ -392,7 +405,11 @@
     try {
       const response = await getNotesData()
       if (response.code === 200) {
+        const currentExpandedKeys = new Set(expandedKeys.value)
         treeData.value = response.data
+        nextTick(() => {
+          expandedKeys.value = currentExpandedKeys
+        })
       } else {
         ElMessage.error(response.message || '加载失败')
       }
@@ -405,12 +422,23 @@
 
   // 生命周期
   onMounted(async () => {
-    document.addEventListener('click', hideAllMenus)
+    document.addEventListener('click', () => (addMenu.visible = false))
     await loadNotesData()
+
+    // 初始化展开状态
+    const initExpandedState = data => {
+      if (Array.isArray(data)) {
+        data.forEach(item => {
+          if (item.expanded) expandedKeys.value.add(item.id)
+          if (item.children?.length) initExpandedState(item.children)
+        })
+      }
+    }
+    setTimeout(() => initExpandedState(treeData.value), 100)
   })
 
   onUnmounted(() => {
-    document.removeEventListener('click', hideAllMenus)
+    document.removeEventListener('click', () => (addMenu.visible = false))
   })
 </script>
 
@@ -450,31 +478,12 @@
         font-weight: 600;
         color: #303133;
       }
-
-      .lock-icon {
-        font-size: 14px;
-        color: #909399;
-      }
     }
 
     .header-right {
       display: flex;
       align-items: center;
       gap: 12px;
-
-      .more-icon {
-        font-size: 18px;
-        color: #606266;
-        cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
-        transition: all 0.2s;
-
-        &:hover {
-          background: #f5f7fa;
-          color: #409eff;
-        }
-      }
 
       .add-btn {
         border-radius: 6px;
@@ -499,6 +508,46 @@
       height: 100%;
       overflow-y: auto;
       padding: 8px 0;
+    }
+  }
+
+  .custom-tree-node {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 12px 12px 12px 0;
+    width: 100%;
+    margin: 6px 0;
+
+    .node-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+
+      .node-icon {
+        font-size: 16px;
+        color: #909399;
+      }
+
+      .node-label {
+        color: #303133;
+        font-size: 16px;
+      }
+    }
+
+    .node-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    &:hover .node-actions {
+      opacity: 1;
     }
   }
 
@@ -530,15 +579,6 @@
         color: #409eff;
       }
 
-      &.danger {
-        color: #f56c6c;
-
-        &:hover {
-          background: #fef0f0;
-          color: #f56c6c;
-        }
-      }
-
       .el-icon {
         font-size: 14px;
       }
@@ -562,5 +602,15 @@
 
   .sidebar-content::-webkit-scrollbar-thumb:hover {
     background: rgba(144, 147, 153, 0.5);
+  }
+
+  // 下拉菜单样式
+  :deep(.el-dropdown-menu__item.danger-item) {
+    color: #f56c6c;
+
+    &:hover {
+      background-color: #fef0f0;
+      color: #f56c6c;
+    }
   }
 </style>
