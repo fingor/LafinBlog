@@ -15,12 +15,6 @@ export default defineConfig(({ mode }) => {
         '/admin': {
           target: env.VITE_API_BASE_URL, // 正确读取环境变量
           changeOrigin: true,
-          // rewrite: (path) => path.replace(/^\/admin/, '') // 按需配置
-        },
-        '/api/notes': {
-          target: env.VITE_API_BASE_URL, // 正确读取环境变量
-          changeOrigin: true,
-          rewrite: path => path.replace(/^\/api\/notes/, '/notes'), // 将 /api/notes 重写为 /notes
         },
         '/api': {
           target: env.VITE_API_BASE_URL, // 正确读取环境变量
