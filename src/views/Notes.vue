@@ -3,8 +3,19 @@
     <!-- 左侧树组件 -->
     <div class="notes-left">
       <Tree
-        :tree-data="treeData"
+        ref="treeRef"
+        title="笔记管理"
         :loading="loading"
+        :data="treeData"
+        :props="{ children: 'children', label: 'title' }"
+        :default-expand-all="false"
+        :default-expanded-keys="Array.from(expandedKeys)"
+        :expand-on-click-node="false"
+        :highlight-current="true"
+        :check-strictly="true"
+        :accordion="false"
+        :indent="16"
+        :icon-class="'el-icon-arrow-right'"
         @node-click="handleNodeClick"
         @node-expand="handleNodeExpand"
         @node-collapse="handleNodeCollapse"
@@ -40,11 +51,15 @@
   import { ref, reactive, onMounted, nextTick } from 'vue'
   import { ElMessage } from 'element-plus'
   import Tree from '@/components/Tree.vue'
+  import { useTreeOperations } from '@/hooks/useTreeOperations'
   import {
     getNotesData,
-    addNoteItem,
-    renameNoteItem,
-    deleteNoteItem,
+    addNote,
+    addFolder,
+    deleteNote,
+    deleteFolder,
+    renameNote,
+    renameFolder,
     getNote,
   } from '@/api/notesApi'
 
@@ -54,11 +69,73 @@
   const selectedNote = ref(null)
   const expandedKeys = ref(new Set())
 
+  // 获取项目在树中的路径
+  const getItemPath = targetId => {
+    const findPath = (items, targetId, path = []) => {
+      for (const item of items) {
+        const currentPath = [...path, item.id]
+        if (item.id === targetId) {
+          return currentPath
+        }
+        if (item.children && item.children.length > 0) {
+          const foundPath = findPath(item.children, targetId, currentPath)
+          if (foundPath) {
+            return foundPath
+          }
+        }
+      }
+      return null
+    }
+    return findPath(treeData.value, targetId)
+  }
+
+  // 加载笔记数据
+  const loadNotesData = async () => {
+    loading.value = true
+    try {
+      const response = await getNotesData()
+      if (response.status) {
+        // 根据API响应结构，数据在 response.data.notesData
+        // 需要将扁平数据转换为树形结构
+        const flatData = response.data.notesData
+        treeData.value = buildTreeFromFlatData(flatData)
+      } else {
+        ElMessage.error(response.message || '加载失败')
+      }
+    } catch (error) {
+      console.error('加载失败:', error)
+      ElMessage.error('加载失败')
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 更新展开状态的函数
+  const updateExpandedKeys = newExpandedKeys => {
+    expandedKeys.value.clear()
+    newExpandedKeys.forEach(id => {
+      expandedKeys.value.add(id)
+    })
+  }
+
+  // 使用树操作组合式函数
+  const { treeRef, executeOperation } = useTreeOperations({
+    loadData: loadNotesData,
+    getItemPath,
+    updateExpandedKeys,
+    showMessage: (message, type) => ElMessage[type](message),
+  })
+
   // 获取笔记详情
   const getSingleNote = async id => {
-    const response = await getNote(id)
-    if (response.status) {
-      selectedNote.value = response.data.document
+    try {
+      const response = await getNote(id)
+      if (response.status) {
+        selectedNote.value = response.data.document
+      }
+    } catch (error) {
+      console.error('获取笔记详情失败:', error)
+      ElMessage.error('获取笔记详情失败')
     }
   }
 
@@ -84,112 +161,78 @@
     expandedKeys.value.delete(data.id)
   }
 
-  const handleQuickAdd = async ({ type, title, parentId }) => {
-    try {
-      const response = await addNoteItem({
-        title,
-        type,
-        parentId,
-      })
-      if (response.status) {
-        // 保存当前展开的节点状态
-        const currentExpandedKeys = new Set(expandedKeys.value)
-
-        await loadNotesData()
-
-        // 恢复展开状态
-        nextTick(() => {
-          expandedKeys.value = currentExpandedKeys
-        })
-
-        ElMessage.success(`添加${type === 'folder' ? '文件夹' : '文档'}成功`)
+  const handleQuickAdd = async ({ type, title, parentId, content }) => {
+    const operation = async () => {
+      if (type === 'folder') {
+        return await addFolder({ title, parentId })
       } else {
-        ElMessage.error(response.message || '添加失败')
+        return await addNote({ title, directoryId: parentId, content })
       }
-    } catch (error) {
-      ElMessage.error('添加失败')
     }
+
+    await executeOperation(
+      operation,
+      null,
+      parentId,
+      `添加${type === 'folder' ? '文件夹' : '文档'}成功`,
+      '添加失败',
+      'add'
+    )
   }
 
   const handleAddItem = async ({ title, type, parentId }) => {
-    try {
-      const response = await addNoteItem({
-        title,
-        type,
-        parentId,
-      })
-      if (response.status) {
-        // 保存当前展开的节点状态
-        const currentExpandedKeys = new Set(expandedKeys.value)
-
-        ElMessage.success('添加成功')
-        await loadNotesData()
-
-        // 恢复展开状态
-        nextTick(() => {
-          expandedKeys.value = currentExpandedKeys
-        })
+    const operation = async () => {
+      if (type === 'folder') {
+        return await addFolder({ title, parentId })
       } else {
-        ElMessage.error(response.message || '添加失败')
+        return await addNote({ title, directoryId: parentId })
       }
-    } catch (error) {
-      ElMessage.error('添加失败')
     }
+    await executeOperation(
+      operation,
+      null,
+      parentId,
+      `添加${type === 'folder' ? '文件夹' : '文档'}成功`,
+      '添加失败',
+      'add'
+    )
   }
 
-  const handleRenameItem = async ({ id, title }) => {
-    try {
-      const response = await renameNoteItem({
-        id,
-        title,
-      })
-      if (response.status) {
-        ElMessage.success('重命名成功')
-        await loadNotesData()
+  const handleRenameItem = async ({ id, title, type }) => {
+    const operation = async () => {
+      if (type === 'folder') {
+        return await renameFolder({ id, title })
       } else {
-        ElMessage.error(response.message || '重命名失败')
+        return await renameNote({ id, title })
       }
-    } catch (error) {
-      ElMessage.error('重命名失败')
     }
+    await executeOperation(
+      operation,
+      id,
+      null,
+      '重命名成功',
+      '重命名失败',
+      'rename'
+    )
   }
 
   const handleDeleteItem = async item => {
-    try {
-      const response = await deleteNoteItem(item.id)
-      if (response.status) {
-        ElMessage.success('删除成功')
-        await loadNotesData()
-        // 如果删除的是当前选中的笔记，清空选中状态
-        if (selectedNote.value && selectedNote.value.id === item.id) {
-          selectedNote.value = null
-        }
+    const operation = async () => {
+      if (item.type === 'folder') {
+        return await deleteFolder({ id: item.id })
       } else {
-        ElMessage.error(response.message || '删除失败')
+        return await deleteNote({ id: item.id })
       }
-    } catch (error) {
-      ElMessage.error('删除失败')
     }
-  }
 
-  const loadNotesData = async () => {
-    loading.value = true
-    try {
-      const response = await getNotesData()
-      if (response.status) {
-        // 根据API响应结构，数据在 response.data.notesData
-        // 需要将扁平数据转换为树形结构
-        const flatData = response.data.notesData
-        treeData.value = buildTreeFromFlatData(flatData)
-      } else {
-        ElMessage.error(response.message || '加载失败')
-      }
-    } catch (error) {
-      console.error('加载失败:', error)
-      ElMessage.error('加载失败')
-    } finally {
-      loading.value = false
-    }
+    await executeOperation(
+      operation,
+      item.id,
+      null,
+      '删除成功',
+      '删除失败',
+      'delete'
+    )
   }
 
   // 将扁平数据转换为树形结构
