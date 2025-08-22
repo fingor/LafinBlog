@@ -517,6 +517,10 @@
       .node-label {
         color: #303133;
         font-size: 16px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 200px;
       }
     }
 

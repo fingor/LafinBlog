@@ -120,6 +120,8 @@
     let processedContent = selectedNote.value.content
     // 使用正则表达式去掉 <span class="ne-text"> 和 </span> 标签
     processedContent = processedContent.replace(/<span class="ne-text">(.*?)<\/span>/g, '$1')
+    // 将 <strong> 标签替换为 ** 加粗语法
+    processedContent = processedContent.replace(/<strong>(.*?)<\/strong>/g, '**$1**')
     // 使用Vditor的预览功能，与编辑模式保持一致的配置
     Vditor.preview(previewRef.value, processedContent, {
       hljs: {
