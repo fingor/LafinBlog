@@ -26,28 +26,58 @@
     <!-- 右侧内容区域 -->
     <div class="notes-right">
       <div class="content-header">
-        <h2>笔记详情</h2>
+        <h2 v-if="selectedNote">{{ selectedNote.title }}</h2>
+        <h2 v-else>笔记详情</h2>
+                 <div v-if="selectedNote" class="header-actions">
+            <el-button
+              v-if="isEditing"
+              @click="cancelEdit"
+              size="small"
+              type="info"
+              plain
+            >
+              取消
+            </el-button>
+            <el-button
+              :type="isEditing ? 'primary' : 'default'"
+              @click="toggleEdit"
+              size="small"
+            >
+              {{ isEditing ? '保存' : '编辑' }}
+            </el-button>
+          </div>
       </div>
-      <div class="content-body">
+      <el-scrollbar class="content-body">
         <div v-if="selectedNote" class="note-detail">
-          <h3>{{ selectedNote.title }}</h3>
-          <div v-if="selectedNote.content" class="note-content">
-            <div class="content-text">{{ selectedNote.content }}</div>
+          <!-- 编辑模式 -->
+          <div v-if="isEditing" class="edit-mode">
+            <MarkdownEditor
+              v-model="editContent"
+              mode="wysiwyg"
+              :readonly="false"
+            />
+          </div>
+          <!-- 预览模式 -->
+          <div v-else class="preview-mode">
+            <div ref="previewRef" class="vditor-preview-container"></div>
           </div>
         </div>
         <div v-else class="empty-state">
           <el-icon class="empty-icon"><Document /></el-icon>
           <p>请选择一个文档查看详情</p>
         </div>
-      </div>
+      </el-scrollbar>
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, onMounted, nextTick } from 'vue'
-  import { ElMessage } from 'element-plus'
+  import { ref, onMounted, nextTick, watch } from 'vue'
+  import { ElMessage, ElMessageBox } from 'element-plus'
+  import Vditor from 'vditor'
+  import 'vditor/dist/index.css'
   import Tree from '@/components/Tree.vue'
+  import MarkdownEditor from '@/components/MarkdownEditor.vue'
   import {
     getNotesData,
     addNote,
@@ -57,6 +87,7 @@
     renameNote,
     renameFolder,
     getNote,
+    saveNote,
   } from '@/api/notesApi'
 
   // 响应式数据
@@ -64,6 +95,60 @@
   const loading = ref(false)
   const selectedNote = ref(null)
   const treeRef = ref(null)
+  const previewRef = ref(null)
+  const isEditing = ref(false)
+  const editContent = ref('')
+
+  // 渲染预览内容
+  const renderPreview = () => {
+    if (!previewRef.value || !selectedNote.value) return
+
+    // 清空容器
+    previewRef.value.innerHTML = ''
+
+    // 如果内容为空，显示空状态
+    if (
+      !selectedNote.value.content ||
+      selectedNote.value.content.trim() === ''
+    ) {
+      previewRef.value.innerHTML =
+        '<div class="empty-content"><p>暂无内容</p></div>'
+      return
+    }
+
+    // 处理内容，去掉 <span class="ne-text"> 标签，只保留内容
+    let processedContent = selectedNote.value.content
+    // 使用正则表达式去掉 <span class="ne-text"> 和 </span> 标签
+    processedContent = processedContent.replace(/<span class="ne-text">(.*?)<\/span>/g, '$1')
+    // 使用Vditor的预览功能，与编辑模式保持一致的配置
+    Vditor.preview(previewRef.value, processedContent, {
+      hljs: {
+        enable: true,
+        lineNumber: true,
+        style: 'github',
+      },
+      theme: {
+        current: 'light',
+      },
+      // 添加更多配置以确保完整显示
+      after: () => {
+        // 预览渲染完成后的回调
+        console.log('预览渲染完成')
+      },
+    })
+  }
+
+  // 监听selectedNote变化
+  watch(
+    () => selectedNote.value?.content,
+    () => {
+      if (!isEditing.value) {
+        nextTick(() => {
+          renderPreview()
+        })
+      }
+    }
+  )
 
   // 加载笔记数据
   const loadNotesData = async () => {
@@ -91,10 +176,70 @@
       const response = await getNote(id)
       if (response.status) {
         selectedNote.value = response.data.document
+        editContent.value = response.data.document.content || ''
+        isEditing.value = false
+        // 渲染预览
+        nextTick(() => {
+          renderPreview()
+        })
       }
     } catch (error) {
       console.error('获取笔记详情失败:', error)
       ElMessage.error('获取笔记详情失败')
+    }
+  }
+
+  // 切换编辑模式
+  const toggleEdit = () => {
+    if (isEditing.value) {
+      // 保存内容
+      save()
+    } else {
+      // 进入编辑模式
+      editContent.value = selectedNote.value?.content || ''
+      isEditing.value = true
+    }
+  }
+
+  // 取消编辑
+  const cancelEdit = () => {
+    // 恢复原始内容，不保存修改
+    editContent.value = selectedNote.value?.content || ''
+    isEditing.value = false
+    // 重新渲染预览内容
+    nextTick(() => {
+      renderPreview()
+    })
+    ElMessage.info('已取消编辑')
+  }
+
+  // 保存笔记
+  const save = async () => {
+    if (!selectedNote.value) return
+
+    // 只发送id和content两个字段
+    const saveData = {
+      id: selectedNote.value.id,
+      content: editContent.value,
+    }
+
+    try {
+      const response = await saveNote(saveData)
+      if (response.status) {
+        // 更新本地数据
+        selectedNote.value.content = editContent.value
+        isEditing.value = false
+        // 重新渲染预览内容
+        nextTick(() => {
+          renderPreview()
+        })
+        ElMessage.success('保存成功')
+      } else {
+        ElMessage.error(response.message || '保存失败')
+      }
+    } catch (error) {
+      console.error('保存失败:', error)
+      ElMessage.error('保存失败')
     }
   }
 
@@ -255,7 +400,7 @@
 
 <style scoped lang="scss">
   .notes-container {
-    height: 100vh;
+    height: 100%;
     display: flex;
     background: #f5f7fa;
   }
@@ -270,6 +415,7 @@
     flex-direction: column;
     background: #ffffff;
     border-left: 1px solid #e4e7ed;
+    overflow: hidden;
   }
 
   .content-header {
@@ -278,6 +424,7 @@
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 24px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 
@@ -287,58 +434,40 @@
       font-weight: 600;
       color: #303133;
     }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
   }
 
   .content-body {
     flex: 1;
-    padding: 24px;
-    overflow-y: auto;
+    height: 100%;
   }
 
   .note-detail {
     width: 100%;
-    h3 {
-      margin: 0 0 20px 0;
-      font-size: 24px;
-      font-weight: 600;
-      color: #303133;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    .edit-mode {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
     }
 
-    .note-info {
-      background: #f8f9fa;
-      padding: 16px;
-      border-radius: 8px;
-      margin-bottom: 24px;
-
-      p {
-        margin: 8px 0;
-        color: #606266;
-        font-size: 14px;
-
-        strong {
-          color: #303133;
-          margin-right: 8px;
-        }
-      }
+    .preview-mode {
+      flex: 1;
+      padding: 0;
+      overflow: visible;
     }
 
-    .note-content {
-      h4 {
-        margin: 0 0 12px 0;
-        font-size: 16px;
-        font-weight: 600;
-        color: #303133;
-      }
-
-      .content-text {
-        background: #f8f9fa;
-        padding: 16px;
-        border-radius: 8px;
-        font-size: 14px;
-        line-height: 1.6;
-        color: #606266;
-        white-space: pre-wrap;
-      }
+    .vditor-preview-container {
+      min-height: 100%;
+      padding: 20px;
+      overflow: visible;
     }
   }
 
@@ -362,22 +491,47 @@
     }
   }
 
-  // 滚动条样式
-  .content-body::-webkit-scrollbar {
-    width: 6px;
-  }
+     // 空内容样式
+   .empty-content {
+     display: flex;
+     align-items: center;
+     justify-content: center;
+     height: 100%;
+     color: #909399;
+     font-size: 16px;
 
-  .content-body::-webkit-scrollbar-track {
-    background: transparent;
-  }
+     p {
+       margin: 0;
+       opacity: 0.6;
+     }
+   }
 
-  .content-body::-webkit-scrollbar-thumb {
-    background: rgba(144, 147, 153, 0.3);
-    border-radius: 3px;
-    transition: background 0.2s;
-  }
-
-  .content-body::-webkit-scrollbar-thumb:hover {
-    background: rgba(144, 147, 153, 0.5);
-  }
+   // 图片帮助对话框样式
+   :deep(.image-help-dialog) {
+     .el-message-box__content {
+       max-width: 500px;
+     }
+     
+     .el-message-box__message {
+       line-height: 1.6;
+       
+       h4 {
+         color: #409eff;
+         margin-bottom: 16px;
+       }
+       
+       ul, ol {
+         margin: 8px 0;
+         padding-left: 20px;
+       }
+       
+       li {
+         margin: 8px 0;
+       }
+       
+       strong {
+         color: #303133;
+       }
+     }
+   }
 </style>

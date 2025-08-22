@@ -94,18 +94,26 @@
       </div>
     </div>
     <!-- 添加对话框 -->
-    <el-dialog v-model="addDialogVisible" title="添加新项目" width="400px">
+    <el-dialog v-model="addDialogVisible" :title="'新建项目'" width="400px">
       <el-form :model="addForm" label-width="80px">
         <el-form-item label="类型">
-          <el-radio-group v-model="addForm.type">
-            <el-radio label="folder">文件夹</el-radio>
+          <el-radio-group
+            v-model="addForm.type"
+            :disabled="addMode === 'quick'"
+          >
             <el-radio label="document">文档</el-radio>
+            <el-radio label="folder">文件夹</el-radio>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="名称">
-          <el-input v-model="addForm.title" placeholder="请输入名称"></el-input>
+          <el-input
+            v-model="addForm.title"
+            placeholder="请输入名称"
+            @keyup.enter="handleAdd"
+            ref="addInputRef"
+          ></el-input>
         </el-form-item>
-        <el-form-item label="父级">
+        <el-form-item label="父级" v-if="addMode === 'full'">
           <el-select
             v-model="addForm.parentId"
             placeholder="请选择父级目录"
@@ -123,35 +131,8 @@
       </el-form>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="addDialogVisible = false">取消</el-button>
+          <el-button @click="cancelAdd">取消</el-button>
           <el-button type="primary" @click="handleAdd">确定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    <!-- 快速添加对话框 -->
-    <el-dialog v-model="quickAddDialogVisible" title="新建项目" width="400px">
-      <el-form :model="quickAddForm" label-width="80px">
-        <el-form-item label="类型">
-          <el-radio-group v-model="quickAddForm.type" disabled>
-            <el-radio label="folder">文件夹</el-radio>
-            <el-radio label="document">文档</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="名称">
-          <el-input
-            v-model="quickAddForm.title"
-            placeholder="请输入名称"
-            @keyup.enter="handleQuickAddConfirm"
-            ref="quickAddInputRef"
-          ></el-input>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="cancelQuickAdd">取消</el-button>
-          <el-button type="primary" @click="handleQuickAddConfirm"
-            >确定</el-button
-          >
         </span>
       </template>
     </el-dialog>
@@ -227,11 +208,10 @@
   // 响应式数据
   const addDialogVisible = ref(false)
   const renameDialogVisible = ref(false)
-  const quickAddDialogVisible = ref(false)
+  const addMode = ref('full') // 'full' 或 'quick'
   const renameForm = reactive({ id: null, title: '', type: '' })
-  const quickAddForm = reactive({ type: 'folder', title: '', parentId: null })
   const renameInputRef = ref(null)
-  const quickAddInputRef = ref(null)
+  const addInputRef = ref(null)
   const expandedKeys = ref(new Set())
   const treeRef = ref(null)
 
@@ -243,7 +223,7 @@
   })
 
   const addForm = reactive({
-    type: 'folder',
+    type: 'document',
     title: '',
     parentId: 'root', // 默认选择根目录
   })
@@ -299,47 +279,38 @@
 
   const handleQuickAdd = async (type, parentItem) => {
     // 显示快速添加对话框
-    quickAddForm.type = type
-    quickAddForm.title = ''
-    quickAddForm.parentId = parentItem?.id || null
-    quickAddDialogVisible.value = true
+    addForm.type = type
+    addForm.title = ''
+    addForm.parentId = parentItem?.id || null
+    addMode.value = 'quick'
+    addDialogVisible.value = true
     addMenu.visible = false
 
-    // 聚焦到输入框
-    nextTick(() => {
-      if (quickAddInputRef.value) {
-        quickAddInputRef.value.focus()
-      }
-    })
+    // 简单聚焦
+    setTimeout(() => {
+      addInputRef.value?.focus()
+    }, 100)
   }
 
-  const handleQuickAddConfirm = async () => {
-    if (!quickAddForm.title.trim()) {
-      ElMessage.warning('请输入名称')
-      return
-    }
-
-    emit('quick-add', {
-      title: quickAddForm.title,
-      type: quickAddForm.type,
-      parentId: quickAddForm.parentId,
-    })
-
-    cancelQuickAdd()
-  }
-
-  const cancelQuickAdd = () => {
-    quickAddDialogVisible.value = false
-    quickAddForm.title = ''
-    quickAddForm.type = 'folder'
-    quickAddForm.parentId = null
+  const cancelAdd = () => {
+    addDialogVisible.value = false
+    addForm.title = ''
+    addForm.type = 'document'
+    addForm.parentId = 'root'
+    addMode.value = 'full'
   }
 
   const showAddDialog = () => {
-    addForm.type = 'folder'
+    addForm.type = 'document'
     addForm.title = ''
     addForm.parentId = 'root' // 默认选择根目录
+    addMode.value = 'full'
     addDialogVisible.value = true
+
+    // 简单聚焦
+    setTimeout(() => {
+      addInputRef.value?.focus()
+    }, 100)
   }
 
   const getAllFolders = () => {
@@ -359,12 +330,24 @@
       ElMessage.warning('请输入名称')
       return
     }
-    emit('add-item', {
-      title: addForm.title,
-      type: addForm.type,
-      parentId: addForm.parentId === 'root' ? '' : addForm.parentId, // 如果是 root，则传递空字符串
-    })
-    addDialogVisible.value = false
+
+    if (addMode.value === 'quick') {
+      // 快速添加模式，使用 quick-add 事件
+      emit('quick-add', {
+        title: addForm.title,
+        type: addForm.type,
+        parentId: addForm.parentId,
+      })
+    } else {
+      // 完整添加模式，使用 add-item 事件
+      emit('add-item', {
+        title: addForm.title,
+        type: addForm.type,
+        parentId: addForm.parentId === 'root' ? '' : addForm.parentId, // 如果是 root，则传递空字符串
+      })
+    }
+
+    cancelAdd()
   }
 
   const handleDelete = async item => {

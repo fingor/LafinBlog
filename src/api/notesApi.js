@@ -70,6 +70,14 @@ export const renameNote = async params => {
   })
   return response
 }
+// 保存笔记
+export const saveNote = async params => {
+  const response = await $http('/api/notes/documentSave', {
+    method: 'post',
+    body: JSON.stringify(params),
+  })
+  return response
+}
 // 获取所有文件夹
 export const getAllFolders = async () => {
   const response = await $http('/api/notes/getFolders', {
