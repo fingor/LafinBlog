@@ -148,19 +148,19 @@
   const rules = {
     username: [
       { required: true, message: '请输入用户名', trigger: 'blur' },
-      { min: 3, message: '用户名至少3个字符', trigger: 'blur' }
+      { min: 3, message: '用户名至少3个字符', trigger: 'blur' },
     ],
     nickname: [
       { required: true, message: '请输入昵称', trigger: 'blur' },
-      { min: 2, message: '昵称至少2个字符', trigger: 'blur' }
+      { min: 2, message: '昵称至少2个字符', trigger: 'blur' },
     ],
     email: [
       { required: true, message: '请输入邮箱', trigger: 'blur' },
-      { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+      { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' },
     ],
     password: [
       { required: true, message: '请输入密码', trigger: 'blur' },
-      { min: 6, message: '密码至少6个字符', trigger: 'blur' }
+      { min: 6, message: '密码至少6个字符', trigger: 'blur' },
     ],
     confirmPassword: [
       { required: true, message: '请确认密码', trigger: 'blur' },
@@ -172,12 +172,12 @@
             callback()
           }
         },
-        trigger: 'blur'
-      }
+        trigger: 'blur',
+      },
     ],
     captchaText: [
       { required: true, message: '请输入验证码', trigger: 'blur' },
-      { len: 4, message: '验证码为4位字符', trigger: 'blur' }
+      { len: 4, message: '验证码为4位字符', trigger: 'blur' },
     ],
     agreeTerms: [
       {
@@ -188,9 +188,9 @@
             callback()
           }
         },
-        trigger: 'change'
-      }
-    ]
+        trigger: 'change',
+      },
+    ],
   }
 
   // 获取验证码

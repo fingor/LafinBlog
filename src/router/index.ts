@@ -85,4 +85,27 @@ const router = createRouter({
   ],
 })
 
+// 路由守卫
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token')
+  
+  // 定义不需要登录就能访问的路由
+  const publicRoutes = ['/login', '/register']
+  
+  // 如果访问的是公开路由，直接放行
+  if (publicRoutes.includes(to.path)) {
+    next()
+    return
+  }
+  
+  // 如果没有token且访问的不是公开路由，重定向到登录页
+  if (!token) {
+    next('/login')
+    return
+  }
+  
+  // 有token，正常访问
+  next()
+})
+
 export default router
