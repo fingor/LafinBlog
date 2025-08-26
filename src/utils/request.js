@@ -57,9 +57,10 @@ export const $http = async (url, options = {}) => {
     
     // 检查 401 未授权状态
     if (response.status === 401) {
-      // 清除本地存储的token
+      // 清除本地存储的token和相关信息
       localStorage.removeItem('token');
       localStorage.removeItem('rememberMe');
+      localStorage.removeItem('rememberedLogin');
       
       // 显示登录超时确认弹窗
       try {

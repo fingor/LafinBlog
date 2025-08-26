@@ -36,9 +36,7 @@
 
         <el-form-item>
           <div class="form-options">
-            <el-checkbox v-model="formData.rememberMe">
-              记住我
-            </el-checkbox>
+            <el-checkbox v-model="formData.rememberMe"> 记住我 </el-checkbox>
             <el-link type="primary" @click="forgotPassword">
               忘记密码？
             </el-link>
@@ -59,14 +57,15 @@
       </el-form>
 
       <div class="register-link">
-        还没有账号？ <el-link type="primary" @click="goToRegister">立即注册</el-link>
+        还没有账号？
+        <el-link type="primary" @click="goToRegister">立即注册</el-link>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-  import { ref, reactive } from 'vue'
+  import { ref, reactive, onMounted } from 'vue'
   import { useRouter } from 'vue-router'
   import { $http } from '@/utils/request.js'
   import { $success, $error, $warning, $info } from '@/utils/confirm.js'
@@ -76,19 +75,31 @@
   const loading = ref(false)
 
   const formData = reactive({
-    login: 'admin',
-    password: 'admin',
+    login: '',
+    password: '',
     rememberMe: false,
+  })
+
+  // 页面加载时检查是否有保存的登录信息
+  const loadRememberedInfo = () => {
+    const rememberedLogin = localStorage.getItem('rememberedLogin')
+    const rememberMe = localStorage.getItem('rememberMe')
+
+    if (rememberMe === 'true' && rememberedLogin) {
+      formData.login = rememberedLogin
+      formData.rememberMe = true
+    }
+  }
+
+  // 组件挂载时加载保存的信息
+  onMounted(() => {
+    loadRememberedInfo()
   })
 
   // 表单验证规则
   const rules = {
-    login: [
-      { required: true, message: '请输入用户名或邮箱', trigger: 'blur' }
-    ],
-    password: [
-      { required: true, message: '请输入密码', trigger: 'blur' }
-    ]
+    login: [{ required: true, message: '请输入用户名或邮箱', trigger: 'blur' }],
+    password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
   }
 
   // 处理登录
@@ -114,9 +125,17 @@
       })
       if (response.status === true) {
         localStorage.setItem('token', response.data.token)
+
+        // 处理"记住我"功能
         if (formData.rememberMe) {
           localStorage.setItem('rememberMe', 'true')
+          localStorage.setItem('rememberedLogin', formData.login) // 保存用户名
+        } else {
+          // 如果没有勾选"记住我"，清除保存的信息
+          localStorage.removeItem('rememberMe')
+          localStorage.removeItem('rememberedLogin')
         }
+
         $success('登录成功！')
         router.push('/home')
       }
