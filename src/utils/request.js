@@ -10,7 +10,8 @@ const throttle = (key, fn, delay = 3000) => {
   throttleMap.set(key, true)
   setTimeout(() => throttleMap.delete(key), delay)
 
-  return fn()
+  fn()
+  // return fn()
 }
 
 // 清除本地存储的认证信息
@@ -25,8 +26,8 @@ const showErrorMessage = res => {
   throttle('error', () => ElMessage.error(errorMessage))
 }
 
-// 处理401(Token过期逻辑)
-const handleTokenExpired = async res => {
+// 处理401响应 - 统一处理所有401状态码
+const handle401Response = async res => {
   // 如果已经在处理，直接返回
   if (throttleMap.has('token-expired')) {
     return {
@@ -38,7 +39,6 @@ const handleTokenExpired = async res => {
   }
 
   throttleMap.set('token-expired', true)
-  clearAuthData()
 
   try {
     await $confirm('登录已超时，请重新登录', '登录超时', {
@@ -46,9 +46,16 @@ const handleTokenExpired = async res => {
       showCancelButton: false,
       type: 'warning',
     })
-  } catch {}
 
-  router.push('/login')
+    // 用户确认后清空缓存并跳转到登录页
+    clearAuthData()
+    router.push('/login')
+  } catch {
+    // 用户取消或其他情况，仍然清空缓存并跳转
+    clearAuthData()
+    router.push('/login')
+  }
+
   setTimeout(() => throttleMap.delete('token-expired'), 1000)
 
   return {
@@ -56,22 +63,6 @@ const handleTokenExpired = async res => {
     message: '登录已超时',
     code: 401,
     errorType: res.errorType,
-  }
-}
-
-// 处理401响应
-const handle401Response = async res => {
-  if (res.errorType === 'TOKEN_EXPIRED') {
-    return handleTokenExpired(res)
-  }
-
-  showErrorMessage(res)
-  return {
-    status: false,
-    message: res.message || '未授权访问',
-    code: 401,
-    errorType: res.errorType,
-    errors: res.errors,
   }
 }
 
