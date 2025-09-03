@@ -16,7 +16,7 @@
             :src="msg.role === 'user' ? userAvatar : botAvatar"
             class="avatar"
           />
-          <div class="bubble">
+          <div class="bubble theme-bg">
             <!-- 打字机效果实现 -->
             <template v-if="msg.role === 'assistant' && msg.isStreaming">
               <div v-html="formatMarkdown(streamingText)"></div>
@@ -74,6 +74,9 @@
   const streamingText = ref("");
   const streamingMessageIndex = ref(-1);
   
+  // 添加请求防重复机制
+  let currentController = null;
+  
   const userAvatar = new URL("@/assets/imgs/user-avatar.png", import.meta.url)
     .href;
   const botAvatar = new URL("@/assets/imgs/bot-avatar.png", import.meta.url).href;
@@ -100,7 +103,13 @@
   }
   
   async function sendMessage() {
-    if (!userInput.value.trim()) return;
+    if (!userInput.value.trim() || isLoading.value) return;
+    
+    // 取消之前的请求
+    if (currentController) {
+      currentController.abort();
+    }
+    currentController = new AbortController();
   
     // 添加用户消息
     messages.value.push({
@@ -122,25 +131,51 @@
     streamingMessageIndex.value = messages.value.length - 1;
     streamingText.value = "";
     isLoading.value = true;
-    await fetchEventSource("/ai/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: [{ role: "user", content: question }] }),
-      onmessage(ev) {
-        // 检查是否为结束标记
-        if (ev.data === "[DONE]") {
-          return; // 忽略结束标记
-        }
-        const data = JSON.parse(ev.data);
-        streamingText.value += data.choices?.[0]?.delta?.content || "";
-      },
-      onerror(err) {
-        throw err; // 自动触发重试
-      },
-      onclose() {
-        finalizeStreaming(); // 调用结束逻辑（如关闭加载状态）
-      },
-    });
+    
+    try {
+      await fetchEventSource("/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: question }] }),
+        signal: currentController.signal,
+        onmessage(ev) {
+          // 检查是否为结束标记
+          if (ev.data === "[DONE]") {
+            finalizeStreaming(); // 结束流式传输
+            return;
+          }
+          const data = JSON.parse(ev.data);
+          streamingText.value += data.choices?.[0]?.delta?.content || "";
+        },
+        onerror(err) {
+          console.error("SSE连接错误:", err);
+          // 添加错误消息到聊天中
+          if (streamingMessageIndex.value !== -1) {
+            messages.value[streamingMessageIndex.value].content = "连接服务器失败，请检查网络或稍后重试";
+            messages.value[streamingMessageIndex.value].isStreaming = false;
+          }
+          throw err;
+        },
+        onclose() {
+          finalizeStreaming(); // 调用结束逻辑（如关闭加载状态）
+        },
+      });
+    } catch (error) {
+      console.error("发送消息失败:", error);
+      isLoading.value = false;
+      currentController = null;
+      
+      // 如果是取消操作，不显示错误
+      if (error.name === 'AbortError') {
+        return;
+      }
+      
+      // 如果消息还在streaming状态，显示错误
+      if (streamingMessageIndex.value !== -1 && messages.value[streamingMessageIndex.value].isStreaming) {
+        messages.value[streamingMessageIndex.value].content = "发送失败，请重试";
+        messages.value[streamingMessageIndex.value].isStreaming = false;
+      }
+    }
   }
   
   function finalizeStreaming() {
@@ -148,6 +183,7 @@
     messages.value[streamingMessageIndex.value].isStreaming = false;
     streamingText.value = "";
     isLoading.value = false;
+    currentController = null;
     scrollToBottom();
   }
   
@@ -231,11 +267,11 @@
     border-radius: 18px;
     line-height: 1.5;
     position: relative;
+    color: white;
   }
   
   .user .bubble {
     background-color: #1890ff;
-    color: white;
     border-top-right-radius: 4px;
   }
   

@@ -9,6 +9,9 @@
     $primary-color: map-get($theme-map, 'primary-color');
     $bg-color: map-get($theme-map, 'background-color');
     $text-color: map-get($theme-map, 'text-color');
+    .theme-bg {
+      background-color: #{$primary-color} !important;
+    }
     .theme-color {
       color: #{$primary-color} !important;
     }
