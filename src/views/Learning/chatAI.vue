@@ -207,7 +207,6 @@
     flex: 1;
     padding: 20px;
     overflow-y: auto;
-    background-color: #f9f9f9;
   }
   
   .message {
@@ -250,7 +249,6 @@
     display: flex;
     flex-flow: column;
     padding: 15px;
-    background-color: white;
     border-top: 1px solid #eee;
   }
   

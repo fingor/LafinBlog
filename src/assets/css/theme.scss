@@ -4,18 +4,20 @@ $theme-dark: #333;
 $theme-green: #50b83c;
 $themes: (
   theme-default: (
+    primary-color: $theme-default,
     background-color: #fff,
     // 主题色再淡一点
     text-color: #000,
   ),
-  theme-dark:
-  (
+  theme-dark: (
+    primary-color: $theme-dark,
     background-color: lighten($theme-dark, 30%),
-    text-color: #fff,
+    text-color: #000,
   ),
-  theme-green:
-  (
+  theme-green: (
+    primary-color: $theme-green,
     background-color: #fff,
-    text-color: $theme-green,
+    text-color: #000,
+    // text-color: $theme-green,
   ),
 );

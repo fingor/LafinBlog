@@ -1,5 +1,5 @@
 <template>
-  <div class="notes-container">
+  <div class="notes-container" data-skin>
     <!-- 左侧树组件 -->
     <div class="notes-left">
       <Tree
@@ -24,7 +24,7 @@
     </div>
 
     <!-- 右侧内容区域 -->
-    <div class="notes-right">
+    <div class="notes-right" data-skin>
       <div class="content-header">
         <h2 v-if="selectedNote">{{ selectedNote.title }}</h2>
         <h2 v-else>笔记详情</h2>
@@ -404,7 +404,8 @@
   .notes-container {
     height: 100%;
     display: flex;
-    background: #f5f7fa;
+    // 移除硬编码的背景色，让主题样式生效
+    // background: #f5f7fa;
   }
 
   .notes-left {
@@ -415,14 +416,16 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
+    // 移除硬编码的背景色，让主题样式生效
+    // background: #ffffff;
     border-left: 1px solid #e4e7ed;
     overflow: hidden;
   }
 
   .content-header {
     height: 56px;
-    background: #fff;
+    // 移除硬编码的背景色
+    // background: #fff;
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
@@ -434,7 +437,8 @@
       margin: 0;
       font-size: 18px;
       font-weight: 600;
-      color: #303133;
+      // 让文字颜色继承主题
+      // color: #303133;
     }
 
     .header-actions {

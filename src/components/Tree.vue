@@ -1,7 +1,7 @@
 <template>
-  <div class="tree-container">
+  <div class="tree-container" data-skin>
     <!-- 顶部导航栏 -->
-    <div class="tree-header">
+    <div class="tree-header" data-skin>
       <div class="header-left">
         <el-icon class="book-icon"><Document /></el-icon>
         <span class="title">{{ title || '笔记' }}</span>
@@ -15,6 +15,7 @@
     <!-- 侧边栏 -->
     <div
       class="tree-sidebar"
+      data-skin
       v-loading="loading"
       element-loading-text="加载中..."
     >
@@ -436,7 +437,6 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #ffffff;
     width: 300px;
     border-right: 1px solid #e4e7ed;
     user-select: none;
@@ -444,7 +444,6 @@
 
   .tree-header {
     height: 56px;
-    background: #fff;
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
@@ -459,13 +458,13 @@
 
       .book-icon {
         font-size: 20px;
-        color: #409eff;
       }
 
       .title {
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        // 移除硬编码文字颜色
+        // color: #303133;
       }
     }
 
@@ -483,7 +482,6 @@
 
   .tree-sidebar {
     flex: 1;
-    background: #fff;
     overflow: hidden;
 
     .sidebar-content {
@@ -515,7 +513,8 @@
       }
 
       .node-label {
-        color: #303133;
+        // 移除硬编码文字颜色，让其继承主题
+        // color: #303133;
         font-size: 16px;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -539,7 +538,6 @@
 
   .context-menu {
     position: fixed;
-    background: #fff;
     border: 1px solid #e4e7ed;
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);

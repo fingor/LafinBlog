@@ -5,6 +5,36 @@
   [data-skin='#{$theme-name}'] {
     background-color: map-get($theme-map, 'background-color') !important;
     color: map-get($theme-map, 'text-color') !important;
+    // Element Plus 主题色变量
+    $primary-color: map-get($theme-map, 'primary-color');
+    $bg-color: map-get($theme-map, 'background-color');
+    $text-color: map-get($theme-map, 'text-color');
+    .theme-color {
+      color: #{$primary-color} !important;
+    }
+    // Element Plus 完整的主题色变量
+    --el-color-primary: #{$primary-color};
+    --el-color-primary-light-3: #{lighten($primary-color, 30%)};
+    --el-color-primary-light-5: #{lighten($primary-color, 50%)};
+    --el-color-primary-light-7: #{lighten($primary-color, 70%)};
+    --el-color-primary-light-8: #{lighten($primary-color, 80%)};
+    --el-color-primary-light-9: #{lighten($primary-color, 90%)};
+    --el-color-primary-dark-2: #{darken($primary-color, 20%)};
+
+    // Element Plus 菜单相关变量
+    --el-menu-active-color: #{$primary-color};
+    --el-menu-hover-bg-color: #{lighten($primary-color, 90%)};
+    --el-menu-bg-color: #{$bg-color};
+    --el-menu-border-color: #{darken($bg-color, 10%)};
+    --el-menu-text-color: #{$text-color};
+
+    // Element Plus 树组件相关变量
+    --el-tree-text-color: #{$text-color};
+    --el-tree-expand-icon-color: #{$text-color};
+    --el-fill-color-blank: #{$bg-color};
+    --el-text-color-regular: #{$text-color};
+    --el-text-color-placeholder: #{lighten($text-color, 40%)};
+    --el-tree-node-hover-bg-color: #{lighten($primary-color, 90%)};
     // 子元素继承主题色
     // * {
     //   background-color: inherit;

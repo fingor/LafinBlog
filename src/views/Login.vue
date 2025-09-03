@@ -75,8 +75,8 @@
   const loading = ref(false)
 
   const formData = reactive({
-    login: '',
-    password: '',
+    login: 'admin',
+    password: 'admin',
     rememberMe: false,
   })
 

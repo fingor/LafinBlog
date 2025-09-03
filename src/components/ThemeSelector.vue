@@ -2,7 +2,8 @@
   <div class="theme-selector">
     <el-dropdown @command="handleThemeChange" placement="bottom-start">
       <div class="theme-button">
-        <span class="theme-text">主题</span>
+        <!-- 显示当前主题颜色圆点而不是文字 -->
+        <span :class="`current-theme-dot theme-dot-${currentTheme}`"></span>
       </div>
       <template #dropdown>
         <el-dropdown-menu>
@@ -42,10 +43,6 @@
     document.querySelectorAll('[data-skin]').forEach(el => {
       el.setAttribute('data-skin', theme)
     })
-
-    // 确保根元素也有主题
-    //   const app = document.getElementById('app')
-    //   if (app) app.setAttribute('data-skin', theme)
   }
 
   // 切换主题
@@ -70,18 +67,26 @@
     .theme-button {
       display: flex;
       align-items: center;
-      padding: 8px 12px;
-      border-radius: 6px;
+      justify-content: center;
+      padding: 8px;
+      border-radius: 50%;
       cursor: pointer;
       transition: all 0.3s ease;
-      color: inherit;
+      width: 32px;
+      height: 32px;
+      background-color: rgba(255, 255, 255, 0.1);
 
       &:hover {
-        background-color: rgba(255, 255, 255, 0.1);
+        background-color: rgba(255, 255, 255, 0.2);
+        transform: scale(1.1);
       }
 
-      .theme-text {
-        font-size: 14px;
+      .current-theme-dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.8);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
       }
     }
   }
@@ -89,7 +94,7 @@
   .theme-option {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
   }
 
   .theme-dot {
@@ -111,8 +116,22 @@
     }
   }
 
+  .current-theme-dot {
+    &.theme-dot-theme-default {
+      background-color: $theme-default;
+    }
+
+    &.theme-dot-theme-dark {
+      background-color: $theme-dark;
+    }
+
+    &.theme-dot-theme-green {
+      background-color: $theme-green;
+    }
+  }
+
   :deep(.el-dropdown-menu__item.is-active) {
-    background-color: rgba(64, 158, 255, 0.1);
-    color: #409eff;
+    background-color: var(--el-color-primary-light-9);
+    color: var(--el-color-primary);
   }
 </style>

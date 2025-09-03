@@ -9,7 +9,7 @@
           alt="Element logo"
           @click="redirectHome"
         />
-        <span class="title" @click="redirectHome">Lafin的博客</span>
+        <span class="title theme-color" @click="redirectHome">Lafin的博客</span>
         <ThemeSelector />
       </div>
       <div class="navList">
@@ -55,7 +55,7 @@
 
 <script setup>
   import { ref, onMounted, watch } from 'vue'
-  import logo from '@/assets/avengers.svg'
+  import logo from '/logo.png'
   import userAvatar from '@/assets/imgs/user-avatar.png'
   import { useRouter, useRoute } from 'vue-router'
   import ThemeSelector from '@/components/ThemeSelector.vue'
@@ -169,15 +169,8 @@
       border-radius: 6px;
       transition: all 0.3s ease;
 
-      &:hover {
-        color: #409eff;
-        background-color: #f0f8ff;
-      }
-
       &.active {
-        color: #409eff;
         font-weight: bold;
-        background-color: #e6f3ff;
       }
     }
   }
