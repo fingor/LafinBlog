@@ -1,0 +1,14 @@
+@import './theme.scss';
+
+// 直接生成所有主题的全局样式
+@each $theme-name, $theme-map in $themes {
+  [data-skin='#{$theme-name}'] {
+    background-color: map-get($theme-map, 'background-color') !important;
+    color: map-get($theme-map, 'text-color') !important;
+    // 子元素继承主题色
+    // * {
+    //   background-color: inherit;
+    //   color: inherit;
+    // }
+  }
+}

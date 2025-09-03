@@ -1,0 +1,21 @@
+// 定义变量
+$theme-default: #1890ff;
+$theme-dark: #333;
+$theme-green: #50b83c;
+$themes: (
+  theme-default: (
+    background-color: #fff,
+    // 主题色再淡一点
+    text-color: #000,
+  ),
+  theme-dark:
+  (
+    background-color: lighten($theme-dark, 30%),
+    text-color: #fff,
+  ),
+  theme-green:
+  (
+    background-color: #fff,
+    text-color: $theme-green,
+  ),
+);

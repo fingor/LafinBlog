@@ -4,6 +4,7 @@ import router from "./router";
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import '@/assets/css/global.css' // 全局公共样式
+import '@/assets/css/mixin.scss'// 全局引入主题样式
 import { $http } from '@/utils/request.js';
 import * as Vue from 'vue';
 window.Vue = Vue; // 将 Vue 挂载到 window 对象上，方便全局访问

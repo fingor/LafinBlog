@@ -1,7 +1,7 @@
 <template>
   <div class="home-container">
     <!-- 导航栏 -->
-    <div class="navbar">
+    <div class="navbar" data-skin>
       <div class="top">
         <img
           style="width: 60px"
@@ -10,6 +10,7 @@
           @click="redirectHome"
         />
         <span class="title" @click="redirectHome">Lafin的博客</span>
+        <ThemeSelector />
       </div>
       <div class="navList">
         <span
@@ -57,7 +58,7 @@
   import logo from '@/assets/avengers.svg'
   import userAvatar from '@/assets/imgs/user-avatar.png'
   import { useRouter, useRoute } from 'vue-router'
-
+  import ThemeSelector from '@/components/ThemeSelector.vue'
   const router = useRouter()
   const route = useRoute()
   const activeIndex = ref('')
@@ -258,6 +259,6 @@
     flex: 1;
     overflow: auto;
     // padding: 20px;
-    background-color: #f8f9fa;
+    // background-color: #f8f9fa;
   }
 </style>
