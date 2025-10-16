@@ -17,6 +17,13 @@
         <h3>应用实践</h3>
         <p>各种技术栈的实际应用和项目实践</p>
       </div>
+      
+      <div class="feature-card payment-card" @click="goToPayment">
+        <div class="feature-icon">💳</div>
+        <h3>支付宝商家收款</h3>
+        <p>博主前端学习笔记及亲笔签名 - 限量版</p>
+        <div class="price-tag">¥279.00</div>
+      </div>
     </div>
   </div>
 </template>
@@ -32,6 +39,10 @@ const goToNotes = () => {
 
 const goToLearning = () => {
   router.push('/learning')
+}
+
+const goToPayment = () => {
+  router.push('/payment')
 }
 </script>
 
@@ -97,6 +108,42 @@ const goToLearning = () => {
     color: #666;
     line-height: 1.6;
     margin: 0;
+  }
+  
+  &.payment-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    position: relative;
+    
+    .feature-icon {
+      color: #fff;
+    }
+    
+    h3 {
+      color: #fff;
+    }
+    
+    p {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .price-tag {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 1.1rem;
+      backdrop-filter: blur(10px);
+    }
+    
+    &:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 30px rgba(102, 126, 234, 0.4);
+    }
   }
 }
 
