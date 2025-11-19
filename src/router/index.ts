@@ -87,6 +87,11 @@ const router = createRouter({
       name: 'Payment',
       component: () => import('../views/Payment.vue'),
     },
+    {
+      path: '/data-analysis',
+      name: 'DataAnalysis',
+      component: () => import('../views/DataAnalysisQA.vue'),
+    },
   ],
 })
 

@@ -24,6 +24,12 @@
         <p>博主前端学习笔记及亲笔签名 - 限量版</p>
         <div class="price-tag">¥279.00</div>
       </div>
+      
+      <div class="feature-card data-analysis-card" @click="goToDataAnalysis">
+        <div class="feature-icon">📊</div>
+        <h3>数据分析问答</h3>
+        <p>智能分析银行数据，回答您的业务问题</p>
+      </div>
     </div>
   </div>
 </template>
@@ -43,6 +49,10 @@ const goToLearning = () => {
 
 const goToPayment = () => {
   router.push('/payment')
+}
+
+const goToDataAnalysis = () => {
+  router.push('/data-analysis')
 }
 </script>
 
@@ -143,6 +153,28 @@ const goToPayment = () => {
     &:hover {
       transform: translateY(-8px);
       box-shadow: 0 12px 30px rgba(102, 126, 234, 0.4);
+    }
+  }
+  
+  &.data-analysis-card {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+    color: white;
+    
+    .feature-icon {
+      color: #fff;
+    }
+    
+    h3 {
+      color: #fff;
+    }
+    
+    p {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    
+    &:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 30px rgba(255, 107, 107, 0.4);
     }
   }
 }
