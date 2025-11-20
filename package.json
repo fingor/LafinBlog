@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@antv/g2plot": "^2.4.35",
+    "@huggingface/inference": "^4.13.3",
     "@microsoft/fetch-event-source": "^2.0.1",
+    "@supabase/supabase-js": "^2.83.0",
     "@uppy/core": "^4.4.6",
     "@uppy/dashboard": "^4.3.4",
     "@uppy/xhr-upload": "^4.3.3",
@@ -20,6 +22,7 @@
     "markdown-it": "^14.1.0",
     "marked": "^16.2.0",
     "mockjs": "^1.1.0",
+    "openai": "^6.9.1",
     "spark-md5": "^3.0.2",
     "vditor": "^3.11.1",
     "vue": "^3.5.13",

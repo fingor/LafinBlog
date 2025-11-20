@@ -92,6 +92,11 @@ const router = createRouter({
       name: 'DataAnalysis',
       component: () => import('../views/DataAnalysisQA.vue'),
     },
+    {
+      path: '/smart-qa',
+      name: 'SmartQA',
+      component: () => import('../pages/SmartQA.vue'),
+    },
   ],
 })
 

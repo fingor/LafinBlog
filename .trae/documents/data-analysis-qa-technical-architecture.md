@@ -19,51 +19,62 @@ graph TD
 
 ## 2. 技术描述
 
-- **前端框架**: Vue3 + TypeScript + Vite
-- **UI组件库**: Element Plus
-- **图表库**: @antv/g2plot
-- **模拟数据**: Mock.js
-- **初始化工具**: vite-init
-- **状态管理**: Pinia
-- **路由**: Vue Router 4
-- **后端服务**: Mock.js 模拟（后期可接入真实后端）
+* **前端框架**: Vue3 + TypeScript + Vite
+
+* **UI组件库**: Element Plus
+
+* **图表库**: @antv/g2plot
+
+* **模拟数据**: Mock.js
+
+* **初始化工具**: vite-init
+
+* **状态管理**: Pinia
+
+* **路由**: Vue Router 4
+
+* **后端服务**: Mock.js 模拟（后期可接入真实后端）
 
 ## 3. 路由定义
 
-| 路由 | 用途 |
-|------|------|
-| / | 问答界面，主要功能页面 |
-| /chart | 图表展示页面 |
-| /history | 历史记录页面 |
-| /profile | 个人中心页面 |
-| /login | 登录页面 |
-| /register | 注册页面 |
+| 路由        | 用途          |
+| --------- | ----------- |
+| /         | 问答界面，主要功能页面 |
+| /chart    | 图表展示页面      |
+| /history  | 历史记录页面      |
+| /profile  | 个人中心页面      |
+| /login    | 登录页面        |
+| /register | 注册页面        |
 
 ## 4. API 定义
 
 ### 4.1 核心 API
 
 **问题分析接口**
+
 ```
 POST /api/analyze
 ```
 
 请求参数：
-| 参数名 | 参数类型 | 是否必需 | 描述 |
-|-----------|-------------|-------------|-------------|
+
+| 参数名      | 参数类型   | 是否必需 | 描述          |
+| -------- | ------ | ---- | ----------- |
 | question | string | true | 用户输入的自然语言问题 |
-| userId | string | true | 用户ID |
+| userId   | string | true | 用户ID        |
 
 响应参数：
-| 参数名 | 参数类型 | 描述 |
-|-----------|-------------|-------------|
-| status | boolean | 请求处理状态 |
-| data | object | 分析结果数据 |
-| chartType | string | 图表类型（bar/line/pie等） |
-| chartData | array | 图表数据数组 |
-| message | string | 处理结果描述 |
+
+| 参数名       | 参数类型    | 描述                  |
+| --------- | ------- | ------------------- |
+| status    | boolean | 请求处理状态              |
+| data      | object  | 分析结果数据              |
+| chartType | string  | 图表类型（bar/line/pie等） |
+| chartData | array   | 图表数据数组              |
+| message   | string  | 处理结果描述              |
 
 示例：
+
 ```json
 {
   "question": "昨天广东省农业银行分行房贷申请人数同比增长多少？",
@@ -72,16 +83,18 @@ POST /api/analyze
 ```
 
 **历史记录接口**
+
 ```
 GET /api/history
 ```
 
 请求参数：
-| 参数名 | 参数类型 | 是否必需 | 描述 |
-|-----------|-------------|-------------|-------------|
-| userId | string | true | 用户ID |
-| page | number | false | 页码，默认1 |
-| limit | number | false | 每页条数，默认10 |
+
+| 参数名    | 参数类型   | 是否必需  | 描述        |
+| ------ | ------ | ----- | --------- |
+| userId | string | true  | 用户ID      |
+| page   | number | false | 页码，默认1    |
+| limit  | number | false | 每页条数，默认10 |
 
 ## 5. 数据模型
 
@@ -111,6 +124,7 @@ erDiagram
 ### 5.2 数据定义语言
 
 **用户表 (users)**
+
 ```sql
 -- 创建用户表
 CREATE TABLE users (
@@ -126,7 +140,8 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email ON users(email);
 ```
 
-**历史记录表 (question_history)**
+**历史记录表 (question\_history)**
+
 ```sql
 -- 创建历史记录表
 CREATE TABLE question_history (
@@ -152,6 +167,7 @@ GRANT ALL PRIVILEGES ON question_history TO authenticated;
 ## 6. Mock数据设计
 
 ### 6.1 模拟问题分析数据
+
 ```javascript
 // 房贷数据分析示例
 const mockMortgageData = {
@@ -182,6 +198,7 @@ const mockBranchData = {
 ```
 
 ### 6.2 模拟响应格式
+
 ```javascript
 // 成功响应
 {
@@ -204,3 +221,4 @@ const mockBranchData = {
   message: "无法理解问题，请重新表述"
 }
 ```
+
